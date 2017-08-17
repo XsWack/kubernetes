@@ -35,7 +35,7 @@ import (
 )
 
 func TestAddFlagsFlag(t *testing.T) {
-	
+
 	f := pflag.NewFlagSet("addflagstest", pflag.ContinueOnError)
 	s := NewServerRunOptions()
 	s.AddFlags(f)
@@ -66,7 +66,7 @@ func TestAddFlagsFlag(t *testing.T) {
 		"--cloud-config=/cloud-config",
 		"--cloud-provider=azure",
 		"--cors-allowed-origins=10.10.10.100,10.10.10.200",
-		"--contention-profiling=true"
+		"--contention-profiling=true",
 		"--enable-aggregator-routing=true",
 		"--enable-logs-handler=false",
 		"--enable-swagger-ui=true",
