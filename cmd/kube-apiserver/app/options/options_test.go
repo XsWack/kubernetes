@@ -82,7 +82,7 @@ func TestAddFlagsFlag(t *testing.T) {
 		"--kubelet-certificate-authority=/var/run/kubernetes/caserver.crt",
 		"--proxy-client-cert-file=/var/run/kubernetes/proxy.crt",
 		"--proxy-client-key-file=/var/run/kubernetes/proxy.key",
-		"--storage-backend='etcd2'",
+		"--storage-backend=etcd2",
 	}
 	f.Parse(args)
 
@@ -144,7 +144,7 @@ func TestAddFlagsFlag(t *testing.T) {
 				string(kapi.NodeExternalDNS),
 				string(kapi.NodeExternalIP),
 			},
-			EnableHttps: true,
+			EnableHttps: false,
 			HTTPTimeout: time.Duration(6) * time.Second,
 			TLSClientConfig: restclient.TLSClientConfig{
 				CertFile:"/var/run/kubernetes/ceserver.crt",
