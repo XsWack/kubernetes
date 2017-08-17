@@ -74,7 +74,7 @@ func TestAddFlagsFlag(t *testing.T) {
 		"--etcd-keyfile=/var/kubernetes/etcd.key",
 		"--etcd-certfile=/var/kubernetes/ce_etcd.crt",
 		"--etcd-cafile=/var/kubernetes/ca_etcd.crt",
-		"--kubelet-https=true",
+		"--kubelet-https=false",
 		"--kubelet-read-only-port=10256",
 		"--kubelet-timeout=6",
 		"--kubelet-client-certificate=/var/kubernetes/ce_server.crt",
@@ -82,7 +82,7 @@ func TestAddFlagsFlag(t *testing.T) {
 		"--kubelet-certificate-authority=/var/kubernetes/ca_server.crt",
 		"--proxy-client-cert-file=/var/kubernetes/proxy.crt",
 		"--proxy-client-key-file=/var/kubernetes/proxy.key",
-		"--storage-backend=etcd3",
+		"--storage-backend=etcd2",
 	}
 	f.Parse(args)
 
@@ -105,7 +105,7 @@ func TestAddFlagsFlag(t *testing.T) {
 		},
 		Etcd: &apiserveroptions.EtcdOptions{
 			StorageConfig: storagebackend.Config{
-				Type:"etcd3",
+				Type:"etcd2",
 				ServerList: nil,
 				Prefix:     "/registry",
 				DeserializationCacheSize: 0,
@@ -217,7 +217,7 @@ func TestAddFlagsFlag(t *testing.T) {
 		EnableLogsHandler:       false,
 		EnableAggregatorRouting: true,
 		ProxyClientKeyFile:"/var/kubernetes/proxy.key",
-		ProxyClientCertFile:"/var/kubernetes/proxy.key",
+		ProxyClientCertFile:"/var/kubernetes/proxy.crt",
 	}
 
 	if !reflect.DeepEqual(expected, s) {
