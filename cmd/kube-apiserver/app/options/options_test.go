@@ -76,13 +76,13 @@ func TestAddFlagsFlag(t *testing.T) {
 		"--etcd-cafile=/var/run/kubernetes/etcdca.crt",
 		"--kubelet-https=false",
 		"--kubelet-read-only-port=10256",
-		"--kubelet-timeout=60000000000",
-		"--kubelet-client-certificate=/var/run/kubernetes/ce_server.crt",
+		"--kubelet-timeout=6s",
+		"--kubelet-client-certificate=/var/run/kubernetes/ceserver.crt",
 		"--kubelet-client-key=/var/run/kubernetes/server.key",
-		"--kubelet-certificate-authority=/var/run/kubernetes/ca_server.crt",
+		"--kubelet-certificate-authority=/var/run/kubernetes/caserver.crt",
 		"--proxy-client-cert-file=/var/run/kubernetes/proxy.crt",
 		"--proxy-client-key-file=/var/run/kubernetes/proxy.key",
-		"--storage-backend=etcd2",
+		"--storage-backend='etcd2'",
 	}
 	f.Parse(args)
 
@@ -111,9 +111,9 @@ func TestAddFlagsFlag(t *testing.T) {
 				DeserializationCacheSize: 0,
 				Copier: kapi.Scheme,
 				Quorum:false,
-				KeyFile:"/var/kubernetes/etcd.key",
-				CAFile:"/var/kubernetes/ca_etcd.crt",
-				CertFile:"/var/kubernetes/ce_etcd.crt",
+				KeyFile:"/var/run/kubernetes/etcd.key",
+				CAFile:"/var/run/kubernetes/etcdca.crt",
+				CertFile:"/var/run/kubernetes/etcdce.crt",
 			},
 			DefaultStorageMediaType: "application/vnd.kubernetes.protobuf",
 			DeleteCollectionWorkers: 1,
@@ -147,9 +147,9 @@ func TestAddFlagsFlag(t *testing.T) {
 			EnableHttps: true,
 			HTTPTimeout: time.Duration(6) * time.Second,
 			TLSClientConfig: restclient.TLSClientConfig{
-				CertFile:"/var/kubernetes/ce_server.crt",
-				KeyFile:"/var/kubernetes/server.key",
-				CAFile:"/var/kubernetes/ca_server.crt",
+				CertFile:"/var/run/kubernetes/ceserver.crt",
+				KeyFile:"/var/run/kubernetes/server.key",
+				CAFile:"/var/run/kubernetes/caserver.crt",
 			},
 		},
 		Audit: &apiserveroptions.AuditOptions{
@@ -216,8 +216,8 @@ func TestAddFlagsFlag(t *testing.T) {
 		},
 		EnableLogsHandler:       false,
 		EnableAggregatorRouting: true,
-		ProxyClientKeyFile:"/var/kubernetes/proxy.key",
-		ProxyClientCertFile:"/var/kubernetes/proxy.crt",
+		ProxyClientKeyFile:"/var/run/kubernetes/proxy.key",
+		ProxyClientCertFile:"/var/run/kubernetes/proxy.crt",
 	}
 
 	if !reflect.DeepEqual(expected, s) {
