@@ -31,10 +31,11 @@ import (
 	kapi "k8s.io/kubernetes/pkg/api"
 	kubeoptions "k8s.io/kubernetes/pkg/kubeapiserver/options"
 	kubeletclient "k8s.io/kubernetes/pkg/kubelet/client"
+	restclient "k8s.io/client-go/rest"
 )
 
 func TestAddFlagsFlag(t *testing.T) {
-	// TODO: Expand the test to include other flags as well.
+	
 	f := pflag.NewFlagSet("addflagstest", pflag.ContinueOnError)
 	s := NewServerRunOptions()
 	s.AddFlags(f)
@@ -65,9 +66,23 @@ func TestAddFlagsFlag(t *testing.T) {
 		"--cloud-config=/cloud-config",
 		"--cloud-provider=azure",
 		"--cors-allowed-origins=10.10.10.100,10.10.10.200",
+		"--contention-profiling=true"
 		"--enable-aggregator-routing=true",
 		"--enable-logs-handler=false",
 		"--enable-swagger-ui=true",
+		"--etcd-quorum-read=false",
+		"--etcd-keyfile=/var/kubernetes/etcd.key",
+		"--etcd-certfile=/var/kubernetes/ce_etcd.crt",
+		"--etcd-cafile=/var/kubernetes/ca_etcd.crt",
+		"--kubelet-https=true",
+		"--kubelet-read-only-port=10256",
+		"--kubelet-timeout=6",
+		"--kubelet-client-certificate=/var/kubernetes/ce_server.crt",
+		"--kubelet-client-key=/var/kubernetes/server.key",
+		"--kubelet-certificate-authority=/var/kubernetes/ca_server.crt",
+		"--proxy-client-cert-file=/var/kubernetes/proxy.crt",
+		"--proxy-client-key-file=/var/kubernetes/proxy.key",
+		"--storage-backend=etcd3",
 	}
 	f.Parse(args)
 
@@ -90,10 +105,15 @@ func TestAddFlagsFlag(t *testing.T) {
 		},
 		Etcd: &apiserveroptions.EtcdOptions{
 			StorageConfig: storagebackend.Config{
+				Type:"etcd3",
 				ServerList: nil,
 				Prefix:     "/registry",
 				DeserializationCacheSize: 0,
 				Copier: kapi.Scheme,
+				Quorum:false,
+				KeyFile:"/var/kubernetes/etcd.key",
+				CAFile:"/var/kubernetes/ca_etcd.crt",
+				CertFile:"/var/kubernetes/ce_etcd.crt",
 			},
 			DefaultStorageMediaType: "application/vnd.kubernetes.protobuf",
 			DeleteCollectionWorkers: 1,
@@ -116,7 +136,7 @@ func TestAddFlagsFlag(t *testing.T) {
 		EventTTL: 1 * time.Hour,
 		KubeletConfig: kubeletclient.KubeletClientConfig{
 			Port:         10250,
-			ReadOnlyPort: 10255,
+			ReadOnlyPort: 10256,
 			PreferredAddressTypes: []string{
 				string(kapi.NodeHostName),
 				string(kapi.NodeInternalDNS),
@@ -125,7 +145,12 @@ func TestAddFlagsFlag(t *testing.T) {
 				string(kapi.NodeExternalIP),
 			},
 			EnableHttps: true,
-			HTTPTimeout: time.Duration(5) * time.Second,
+			HTTPTimeout: time.Duration(6) * time.Second,
+			TLSClientConfig:restclient.TLSClientConfig{
+				CertFile:"/var/kubernetes/ce_server.crt",
+				KeyFile:"/var/kubernetes/server.key",
+				CAFile:"/var/kubernetes/ca_server.crt",
+			},
 		},
 		Audit: &apiserveroptions.AuditOptions{
 			LogOptions: apiserveroptions.AuditLogOptions{
@@ -144,6 +169,7 @@ func TestAddFlagsFlag(t *testing.T) {
 		Features: &apiserveroptions.FeatureOptions{
 			EnableSwaggerUI: true,
 			EnableProfiling: true,
+			EnableContentionProfiling:true,
 		},
 		Authentication: &kubeoptions.BuiltInAuthenticationOptions{
 			Anonymous: &kubeoptions.AnonymousAuthenticationOptions{
@@ -190,6 +216,8 @@ func TestAddFlagsFlag(t *testing.T) {
 		},
 		EnableLogsHandler:       false,
 		EnableAggregatorRouting: true,
+		ProxyClientKeyFile:"/var/kubernetes/proxy.key",
+		ProxyClientCertFile:"/var/kubernetes/proxy.key",
 	}
 
 	if !reflect.DeepEqual(expected, s) {
