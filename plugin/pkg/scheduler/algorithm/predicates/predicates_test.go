@@ -30,6 +30,8 @@ import (
 	"k8s.io/kubernetes/plugin/pkg/scheduler/schedulercache"
 	schedulertesting "k8s.io/kubernetes/plugin/pkg/scheduler/testing"
 	schedutil "k8s.io/kubernetes/plugin/pkg/scheduler/util"
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
+	"k8s.io/kubernetes/pkg/api/v1/helper"
 )
 
 type FakeNodeInfo v1.Node
@@ -3741,5 +3743,268 @@ func TestVolumeZonePredicateMultiZone(t *testing.T) {
 			t.Errorf("%s: expected %v got %v", test.Name, test.Fits, fits)
 		}
 
+	}
+}
+
+func TestNoVolumeNodeConflict(t *testing.T) {
+	testCase := []struct {
+		actionFunc  func(value string) error
+		actionParam string
+		pod         *v1.Pod
+		fits        bool
+		test        string
+	}{
+		{
+			actionFunc:  utilfeature.DefaultFeatureGate.Set,
+			actionParam: "PersistentLocalVolumes=false",
+			fits:        true,
+			test:        "feature PersistentLocalVolumes is not enabled",
+		},
+		{
+			actionFunc:  utilfeature.DefaultFeatureGate.Set,
+			actionParam: "PersistentLocalVolumes=true",
+			pod:         &v1.Pod{},
+			fits:        true,
+			test:        "pod does not have volume",
+		},
+		{
+			actionFunc:  utilfeature.DefaultFeatureGate.Set,
+			actionParam: "PersistentLocalVolumes=true",
+			pod: &v1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "namespace-1",
+				},
+				Spec: v1.PodSpec{
+					Volumes: []v1.Volume{
+						{
+							VolumeSource: v1.VolumeSource{
+								PersistentVolumeClaim: &v1.PersistentVolumeClaimVolumeSource{
+									ClaimName: "",
+								},
+							},
+						},
+					},
+				},
+			},
+			fits: false,
+			test: "PersistentVolumeClaim had no name",
+		},
+		{
+			actionFunc:  utilfeature.DefaultFeatureGate.Set,
+			actionParam: "PersistentLocalVolumes=true",
+			pod: &v1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "namespace-1",
+				},
+				Spec: v1.PodSpec{
+					Volumes: []v1.Volume{
+						{
+							VolumeSource: v1.VolumeSource{
+								PersistentVolumeClaim: &v1.PersistentVolumeClaimVolumeSource{
+									ClaimName: "vol-not-exist",
+								},
+							},
+						},
+					},
+				},
+			},
+			fits: false,
+			test: "PersistentVolumeClaim was not found vol-not-exist",
+		},
+		{
+			actionFunc:  utilfeature.DefaultFeatureGate.Set,
+			actionParam: "PersistentLocalVolumes=true",
+			pod: &v1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "namespace-1",
+				},
+				Spec: v1.PodSpec{
+					Volumes: []v1.Volume{
+						{
+							VolumeSource: v1.VolumeSource{
+								PersistentVolumeClaim: &v1.PersistentVolumeClaimVolumeSource{
+									ClaimName: "pvc-1",
+								},
+							},
+						},
+					},
+				},
+			},
+			fits: false,
+			test: "PersistentVolumeClaim is not bound pvc-1",
+		},
+		{
+			actionFunc:  utilfeature.DefaultFeatureGate.Set,
+			actionParam: "PersistentLocalVolumes=true",
+			pod: &v1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "namespace-2",
+				},
+				Spec: v1.PodSpec{
+					Volumes: []v1.Volume{
+						{
+							VolumeSource: v1.VolumeSource{
+								PersistentVolumeClaim: &v1.PersistentVolumeClaimVolumeSource{
+									ClaimName: "pvc-2",
+								},
+							},
+						},
+					},
+				},
+			},
+			fits: false,
+			test: "Unable to find persistent volume: vol-name-2",
+		},
+		{
+			actionFunc:  utilfeature.DefaultFeatureGate.Set,
+			actionParam: "PersistentLocalVolumes=true",
+			pod: &v1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "namespace-3",
+				},
+				Spec: v1.PodSpec{
+					Volumes: []v1.Volume{
+						{
+							VolumeSource: v1.VolumeSource{
+								PersistentVolumeClaim: &v1.PersistentVolumeClaimVolumeSource{
+									ClaimName: "pvc-3",
+								},
+							},
+						},
+					},
+				},
+			},
+			fits: false,
+			test: "No Volume Node fit",
+		},
+		{
+			actionFunc:  utilfeature.DefaultFeatureGate.Set,
+			actionParam: "PersistentLocalVolumes=true",
+			pod: &v1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "namespace-4",
+				},
+				Spec: v1.PodSpec{
+					Volumes: []v1.Volume{
+						{
+							VolumeSource: v1.VolumeSource{
+								PersistentVolumeClaim: &v1.PersistentVolumeClaimVolumeSource{
+									ClaimName: "pvc-4",
+								},
+							},
+						},
+					},
+				},
+			},
+			fits: true,
+			test: "NoVolumeNodeConflict",
+		},
+	}
+
+	nodeAffinity := &v1.NodeAffinity{
+		RequiredDuringSchedulingIgnoredDuringExecution: &v1.NodeSelector{
+			NodeSelectorTerms: []v1.NodeSelectorTerm{
+				{
+					MatchExpressions: []v1.NodeSelectorRequirement{
+						{
+							Key:      "test-key1",
+							Operator: v1.NodeSelectorOpIn,
+							Values:   []string{"test-value1", "test-value2"},
+						},
+						{
+							Key:      "test-key2",
+							Operator: v1.NodeSelectorOpIn,
+							Values:   []string{"test-value3", "test-value4"},
+						},
+					},
+				},
+			},
+		},
+	}
+	pvInfo := FakePersistentVolumeInfo{
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "pv-1",
+				Namespace: "namespace-1",
+			},
+		},
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:        "vol-name-3",
+				Namespace:   "namespace-3",
+				Annotations: make(map[string]string),
+			},
+		},
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "vol-name-4",
+				Namespace: "namespace-4",
+			},
+		},
+	}
+	helper.StorageNodeAffinityToAlphaAnnotation(pvInfo[1].Annotations, nodeAffinity)
+
+	pvcInfo := FakePersistentVolumeClaimInfo{
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "pvc-1",
+				Namespace: "namespace-1",
+			},
+			Spec: v1.PersistentVolumeClaimSpec{
+				VolumeName: "",
+			},
+		},
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "pvc-2",
+				Namespace: "namespace-2",
+			},
+			Spec: v1.PersistentVolumeClaimSpec{
+				VolumeName: "vol-name-2",
+			},
+		},
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "pvc-3",
+				Namespace: "namespace-3",
+			},
+			Spec: v1.PersistentVolumeClaimSpec{
+				VolumeName: "vol-name-3",
+			},
+		},
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "pvc-4",
+				Namespace: "namespace-4",
+			},
+			Spec: v1.PersistentVolumeClaimSpec{
+				VolumeName: "vol-name-4",
+			},
+		},
+	}
+
+	node := &v1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:   "host-1",
+			Labels: map[string]string{"lab-1": "val-1", "lab-2": "val-2"},
+		},
+	}
+	nodeInfo := &schedulercache.NodeInfo{}
+	nodeInfo.SetNode(node)
+
+	expectedFailureReasons := []algorithm.PredicateFailureReason{ErrVolumeNodeConflict}
+
+	for _, test := range testCase {
+		pred := NewVolumeNodePredicate(pvInfo, pvcInfo, nil)
+		fits, reasons, err := pred(test.pod, nil, nodeInfo)
+		if err != nil && err.Error() != test.test {
+			t.Errorf("%s: unexpected error: %v", test.test, err)
+		}
+		if !fits && !reflect.DeepEqual(reasons, expectedFailureReasons) {
+			t.Errorf("%s: unexpected failure reasons: %v, want: %v", test.test, reasons, expectedFailureReasons)
+		}
+		if fits != test.fits {
+			t.Errorf("%s: expected %v, got %v", test.test, test.fits, fits)
+		}
 	}
 }
