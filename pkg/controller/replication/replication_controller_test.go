@@ -188,20 +188,27 @@ type serverResponse struct {
 	obj        interface{}
 }
 
-func newReplicationManagerFromClient(kubeClient clientset.Interface, burstReplicas int) (*ReplicationManager, coreinformers.PodInformer, coreinformers.ReplicationControllerInformer) {
+func newReplicationManagerFromClient(kubeClient clientset.Interface, burstReplicas int) (*ReplicationManager, coreinformers.PodInformer, coreinformers.ReplicationControllerInformer, error) {
 	informerFactory := informers.NewSharedInformerFactory(kubeClient, controller.NoResyncPeriodFunc())
 	podInformer := informerFactory.Core().V1().Pods()
 	rcInformer := informerFactory.Core().V1().ReplicationControllers()
-	rm := NewReplicationManager(podInformer, rcInformer, kubeClient, burstReplicas)
+	rm, err := NewReplicationManager(podInformer, rcInformer, kubeClient, burstReplicas)
+	if err != nil {
+		return nil, nil, nil, err
+	}
 	rm.podListerSynced = alwaysReady
 	rm.rcListerSynced = alwaysReady
-	return rm, podInformer, rcInformer
+	return rm, podInformer, rcInformer, nil
 }
 
 func TestSyncReplicationControllerDoesNothing(t *testing.T) {
 	c := clientset.NewForConfigOrDie(&restclient.Config{Host: "", ContentConfig: restclient.ContentConfig{GroupVersion: &api.Registry.GroupOrDie(v1.GroupName).GroupVersion}})
 	fakePodControl := controller.FakePodControl{}
-	manager, podInformer, rcInformer := newReplicationManagerFromClient(c, BurstReplicas)
+	manager, podInformer, rcInformer, er := newReplicationManagerFromClient(c, BurstReplicas)
+	if er != nil {
+		t.Errorf("Failed to create replication controller: %v", er)
+		return
+	}
 
 	// 2 running pods, a controller with 2 replicas, sync is a no-op
 	controllerSpec := newReplicationController(2)
@@ -218,7 +225,11 @@ func TestSyncReplicationControllerDeletes(t *testing.T) {
 
 	c := fake.NewSimpleClientset(controllerSpec)
 	fakePodControl := controller.FakePodControl{}
-	manager, podInformer, rcInformer := newReplicationManagerFromClient(c, BurstReplicas)
+	manager, podInformer, rcInformer, er := newReplicationManagerFromClient(c, BurstReplicas)
+	if er != nil {
+		t.Errorf("Failed to create replication controller: %v", er)
+		return
+	}
 	manager.podControl = &fakePodControl
 
 	// 2 running pods and a controller with 1 replica, one pod delete expected
@@ -235,7 +246,11 @@ func TestSyncReplicationControllerDeletes(t *testing.T) {
 func TestDeleteFinalStateUnknown(t *testing.T) {
 	c := clientset.NewForConfigOrDie(&restclient.Config{Host: "", ContentConfig: restclient.ContentConfig{GroupVersion: &api.Registry.GroupOrDie(v1.GroupName).GroupVersion}})
 	fakePodControl := controller.FakePodControl{}
-	manager, _, rcInformer := newReplicationManagerFromClient(c, BurstReplicas)
+	manager, _, rcInformer, err := newReplicationManagerFromClient(c, BurstReplicas)
+	if err != nil {
+		t.Errorf("Failed to create replication controller: %v", err)
+		return
+	}
 	manager.podControl = &fakePodControl
 
 	received := make(chan string)
@@ -267,7 +282,11 @@ func TestDeleteFinalStateUnknown(t *testing.T) {
 func TestSyncReplicationControllerCreates(t *testing.T) {
 	rc := newReplicationController(2)
 	c := fake.NewSimpleClientset(rc)
-	manager, podInformer, rcInformer := newReplicationManagerFromClient(c, BurstReplicas)
+	manager, podInformer, rcInformer, er := newReplicationManagerFromClient(c, BurstReplicas)
+	if er != nil {
+		t.Errorf("Failed to create replication controller: %v", er)
+		return
+	}
 
 	// A controller with 2 replicas and no active pods in the store.
 	// Inactive pods should be ignored. 2 creates expected.
@@ -292,7 +311,11 @@ func TestSyncReplicationControllerCreateFailures(t *testing.T) {
 
 	rc := newReplicationController(fakePodControl.CreateLimit * 10)
 	c := fake.NewSimpleClientset(rc)
-	manager, _ /*podInformer*/, rcInformer := newReplicationManagerFromClient(c, BurstReplicas)
+	manager, _ /*podInformer*/, rcInformer, err := newReplicationManagerFromClient(c, BurstReplicas)
+	if err != nil {
+		t.Errorf("Failed to create replication controller: %v", err)
+		return
+	}
 
 	rcInformer.Informer().GetIndexer().Add(rc)
 
@@ -324,7 +347,11 @@ func TestStatusUpdatesWithoutReplicasChange(t *testing.T) {
 	testServer := httptest.NewServer(&fakeHandler)
 	defer testServer.Close()
 	c := clientset.NewForConfigOrDie(&restclient.Config{Host: testServer.URL, ContentConfig: restclient.ContentConfig{GroupVersion: &api.Registry.GroupOrDie(v1.GroupName).GroupVersion}})
-	manager, podInformer, rcInformer := newReplicationManagerFromClient(c, BurstReplicas)
+	manager, podInformer, rcInformer, er := newReplicationManagerFromClient(c, BurstReplicas)
+	if er != nil {
+		t.Errorf("Failed to create replication controller: %v", er)
+		return
+	}
 
 	// Steady state for the replication controller, no Status.Replicas updates expected
 	activePods := 5
@@ -364,7 +391,11 @@ func TestControllerUpdateReplicas(t *testing.T) {
 	testServer := httptest.NewServer(&fakeHandler)
 	defer testServer.Close()
 	c := clientset.NewForConfigOrDie(&restclient.Config{Host: testServer.URL, ContentConfig: restclient.ContentConfig{GroupVersion: &api.Registry.GroupOrDie(v1.GroupName).GroupVersion}})
-	manager, podInformer, rcInformer := newReplicationManagerFromClient(c, BurstReplicas)
+	manager, podInformer, rcInformer, er := newReplicationManagerFromClient(c, BurstReplicas)
+	if er != nil {
+		t.Errorf("Failed to create replication controller: %v", er)
+		return
+	}
 
 	// Insufficient number of pods in the system, and Status.Replicas is wrong;
 	// Status.Replica should update to match number of pods in system, 1 new pod should be created.
@@ -402,7 +433,11 @@ func TestSyncReplicationControllerDormancy(t *testing.T) {
 	controllerSpec := newReplicationController(2)
 	c := fake.NewSimpleClientset(controllerSpec)
 	fakePodControl := controller.FakePodControl{}
-	manager, podInformer, rcInformer := newReplicationManagerFromClient(c, BurstReplicas)
+	manager, podInformer, rcInformer, er := newReplicationManagerFromClient(c, BurstReplicas)
+	if er != nil {
+		t.Errorf("Failed to create replication controller: %v", er)
+		return
+	}
 	manager.podControl = &fakePodControl
 
 	rcInformer.Informer().GetIndexer().Add(controllerSpec)
@@ -449,7 +484,11 @@ func TestSyncReplicationControllerDormancy(t *testing.T) {
 }
 
 func TestPodControllerLookup(t *testing.T) {
-	manager, _, rcInformer := newReplicationManagerFromClient(clientset.NewForConfigOrDie(&restclient.Config{Host: "", ContentConfig: restclient.ContentConfig{GroupVersion: &api.Registry.GroupOrDie(v1.GroupName).GroupVersion}}), BurstReplicas)
+	manager, _, rcInformer, err := newReplicationManagerFromClient(clientset.NewForConfigOrDie(&restclient.Config{Host: "", ContentConfig: restclient.ContentConfig{GroupVersion: &api.Registry.GroupOrDie(v1.GroupName).GroupVersion}}), BurstReplicas)
+	if err != nil {
+		t.Errorf("Failed to create replication controller: %v", err)
+		return
+	}
 	testCases := []struct {
 		inRCs     []*v1.ReplicationController
 		pod       *v1.Pod
@@ -521,7 +560,11 @@ func TestWatchControllers(t *testing.T) {
 	informers := informers.NewSharedInformerFactory(c, controller.NoResyncPeriodFunc())
 	podInformer := informers.Core().V1().Pods()
 	rcInformer := informers.Core().V1().ReplicationControllers()
-	manager := NewReplicationManager(podInformer, rcInformer, c, BurstReplicas)
+	manager, err := NewReplicationManager(podInformer, rcInformer, c, BurstReplicas)
+	if err != nil {
+		t.Errorf("Failed to create replication controller: %v", err)
+		return
+	}
 	informers.Start(stopCh)
 
 	var testControllerSpec v1.ReplicationController
@@ -561,7 +604,11 @@ func TestWatchPods(t *testing.T) {
 	fakeWatch := watch.NewFake()
 	c := &fake.Clientset{}
 	c.AddWatchReactor("*", core.DefaultWatchReactor(fakeWatch, nil))
-	manager, podInformer, rcInformer := newReplicationManagerFromClient(c, BurstReplicas)
+	manager, podInformer, rcInformer, er := newReplicationManagerFromClient(c, BurstReplicas)
+	if er != nil {
+		t.Errorf("Failed to create replication controller: %v", er)
+		return
+	}
 
 	// Put one rc and one pod into the controller's stores
 	testControllerSpec := newReplicationController(1)
@@ -602,7 +649,11 @@ func TestWatchPods(t *testing.T) {
 }
 
 func TestUpdatePods(t *testing.T) {
-	manager, podInformer, rcInformer := newReplicationManagerFromClient(fake.NewSimpleClientset(), BurstReplicas)
+	manager, podInformer, rcInformer, error := newReplicationManagerFromClient(fake.NewSimpleClientset(), BurstReplicas)
+	if error != nil {
+		t.Errorf("Failed to create replication controller: %v", error)
+		return
+	}
 
 	received := make(chan string)
 
@@ -734,7 +785,11 @@ func TestControllerUpdateRequeue(t *testing.T) {
 			}
 			return true, nil, errors.New("failed to update status")
 		})
-	manager, podInformer, rcInformer := newReplicationManagerFromClient(c, BurstReplicas)
+	manager, podInformer, rcInformer, er := newReplicationManagerFromClient(c, BurstReplicas)
+	if er != nil {
+		t.Errorf("Failed to create replication controller: %v", er)
+		return
+	}
 
 	rcInformer.Informer().GetIndexer().Add(rc)
 	rc.Status = v1.ReplicationControllerStatus{Replicas: 2}
@@ -805,7 +860,11 @@ func doTestControllerBurstReplicas(t *testing.T, burstReplicas, numReplicas int)
 	controllerSpec := newReplicationController(numReplicas)
 	c := fake.NewSimpleClientset(controllerSpec)
 	fakePodControl := controller.FakePodControl{}
-	manager, podInformer, rcInformer := newReplicationManagerFromClient(c, burstReplicas)
+	manager, podInformer, rcInformer, error := newReplicationManagerFromClient(c, burstReplicas)
+	if error != nil {
+		t.Errorf("Failed to create replication controller: %v", error)
+		return
+	}
 	manager.podControl = &fakePodControl
 
 	rcInformer.Informer().GetIndexer().Add(controllerSpec)
@@ -961,7 +1020,11 @@ func (fe FakeRCExpectations) SatisfiedExpectations(controllerKey string) bool {
 func TestRCSyncExpectations(t *testing.T) {
 	c := clientset.NewForConfigOrDie(&restclient.Config{Host: "", ContentConfig: restclient.ContentConfig{GroupVersion: &api.Registry.GroupOrDie(v1.GroupName).GroupVersion}})
 	fakePodControl := controller.FakePodControl{}
-	manager, podInformer, rcInformer := newReplicationManagerFromClient(c, 2)
+	manager, podInformer, rcInformer, err := newReplicationManagerFromClient(c, 2)
+	if err != nil {
+		t.Errorf("Failed to create replication controller: %v", err)
+		return
+	}
 	manager.podControl = &fakePodControl
 
 	controllerSpec := newReplicationController(2)
@@ -985,7 +1048,11 @@ func TestRCSyncExpectations(t *testing.T) {
 func TestDeleteControllerAndExpectations(t *testing.T) {
 	rc := newReplicationController(1)
 	c := fake.NewSimpleClientset(rc)
-	manager, podInformer, rcInformer := newReplicationManagerFromClient(c, 10)
+	manager, podInformer, rcInformer, error := newReplicationManagerFromClient(c, 10)
+	if error != nil {
+		t.Errorf("Failed to create replication controller: %v", error)
+		return
+	}
 
 	rcInformer.Informer().GetIndexer().Add(rc)
 
@@ -1037,7 +1104,11 @@ func shuffle(controllers []*v1.ReplicationController) []*v1.ReplicationControlle
 func TestOverlappingRCs(t *testing.T) {
 	c := clientset.NewForConfigOrDie(&restclient.Config{Host: "", ContentConfig: restclient.ContentConfig{GroupVersion: &api.Registry.GroupOrDie(v1.GroupName).GroupVersion}})
 
-	manager, _, rcInformer := newReplicationManagerFromClient(c, 10)
+	manager, _, rcInformer, error := newReplicationManagerFromClient(c, 10)
+	if error != nil {
+		t.Errorf("Failed to create replication controller: %v", error)
+		return
+	}
 
 	// Create 10 rcs, shuffled them randomly and insert them into the
 	// rc manager's store.
@@ -1076,7 +1147,11 @@ func TestOverlappingRCs(t *testing.T) {
 
 func TestDeletionTimestamp(t *testing.T) {
 	c := clientset.NewForConfigOrDie(&restclient.Config{Host: "", ContentConfig: restclient.ContentConfig{GroupVersion: &api.Registry.GroupOrDie(v1.GroupName).GroupVersion}})
-	manager, _, rcInformer := newReplicationManagerFromClient(c, 10)
+	manager, _, rcInformer, error := newReplicationManagerFromClient(c, 10)
+	if error != nil {
+		t.Errorf("Failed to create replication controller: %v", error)
+		return
+	}
 
 	controllerSpec := newReplicationController(1)
 	rcInformer.Informer().GetIndexer().Add(controllerSpec)
@@ -1169,7 +1244,11 @@ func TestDeletionTimestamp(t *testing.T) {
 
 func BenchmarkGetPodControllerMultiNS(b *testing.B) {
 	client := clientset.NewForConfigOrDie(&restclient.Config{Host: "", ContentConfig: restclient.ContentConfig{GroupVersion: &api.Registry.GroupOrDie(v1.GroupName).GroupVersion}})
-	manager, _, rcInformer := newReplicationManagerFromClient(client, BurstReplicas)
+	manager, _, rcInformer, err := newReplicationManagerFromClient(client, BurstReplicas)
+	if err != nil {
+		b.Errorf("Failed to create replication controller: %v", err)
+		return
+	}
 
 	const nsNum = 1000
 
@@ -1215,7 +1294,11 @@ func BenchmarkGetPodControllerMultiNS(b *testing.B) {
 
 func BenchmarkGetPodControllerSingleNS(b *testing.B) {
 	client := clientset.NewForConfigOrDie(&restclient.Config{Host: "", ContentConfig: restclient.ContentConfig{GroupVersion: &api.Registry.GroupOrDie(v1.GroupName).GroupVersion}})
-	manager, _, rcInformer := newReplicationManagerFromClient(client, BurstReplicas)
+	manager, _, rcInformer, err := newReplicationManagerFromClient(client, BurstReplicas)
+	if err != nil {
+		b.Errorf("Failed to create replication controller: %v", err)
+		return
+	}
 
 	const rcNum = 1000
 	const replicaNum = 3
@@ -1254,17 +1337,24 @@ func BenchmarkGetPodControllerSingleNS(b *testing.B) {
 }
 
 // setupManagerWithGCEnabled creates a RC manager with a fakePodControl
-func setupManagerWithGCEnabled(objs ...runtime.Object) (manager *ReplicationManager, fakePodControl *controller.FakePodControl, podInformer coreinformers.PodInformer, rcInformer coreinformers.ReplicationControllerInformer) {
+func setupManagerWithGCEnabled(objs ...runtime.Object) (manager *ReplicationManager, fakePodControl *controller.FakePodControl, podInformer coreinformers.PodInformer, rcInformer coreinformers.ReplicationControllerInformer, err error) {
 	c := fakeclientset.NewSimpleClientset(objs...)
 	fakePodControl = &controller.FakePodControl{}
-	manager, podInformer, rcInformer = newReplicationManagerFromClient(c, BurstReplicas)
+	manager, podInformer, rcInformer, err = newReplicationManagerFromClient(c, BurstReplicas)
+	if err != nil {
+		return nil, nil, nil, nil, err
+	}
 	manager.podControl = fakePodControl
-	return manager, fakePodControl, podInformer, rcInformer
+	return manager, fakePodControl, podInformer, rcInformer, nil
 }
 
 func TestDoNotPatchPodWithOtherControlRef(t *testing.T) {
 	rc := newReplicationController(2)
-	manager, fakePodControl, podInformer, rcInformer := setupManagerWithGCEnabled(rc)
+	manager, fakePodControl, podInformer, rcInformer, error := setupManagerWithGCEnabled(rc)
+	if error != nil {
+		t.Errorf("Failed to create replication controller: %v", error)
+		return
+	}
 	rcInformer.Informer().GetIndexer().Add(rc)
 	var trueVar = true
 	otherControllerReference := metav1.OwnerReference{UID: uuid.NewUUID(), APIVersion: "v1", Kind: "ReplicationController", Name: "AnotherRC", Controller: &trueVar}
@@ -1282,7 +1372,11 @@ func TestDoNotPatchPodWithOtherControlRef(t *testing.T) {
 
 func TestPatchPodWithOtherOwnerRef(t *testing.T) {
 	rc := newReplicationController(2)
-	manager, fakePodControl, podInformer, rcInformer := setupManagerWithGCEnabled(rc)
+	manager, fakePodControl, podInformer, rcInformer, error := setupManagerWithGCEnabled(rc)
+	if error != nil {
+		t.Errorf("Failed to create replication controller: %v", error)
+		return
+	}
 	rcInformer.Informer().GetIndexer().Add(rc)
 	// add to podLister one more matching pod that doesn't have a controller
 	// ref, but has an owner ref pointing to other object. Expect a patch to
@@ -1302,7 +1396,11 @@ func TestPatchPodWithOtherOwnerRef(t *testing.T) {
 
 func TestPatchPodWithCorrectOwnerRef(t *testing.T) {
 	rc := newReplicationController(2)
-	manager, fakePodControl, podInformer, rcInformer := setupManagerWithGCEnabled(rc)
+	manager, fakePodControl, podInformer, rcInformer, error := setupManagerWithGCEnabled(rc)
+	if error != nil {
+		t.Errorf("Failed to create replication controller: %v", error)
+		return
+	}
 	rcInformer.Informer().GetIndexer().Add(rc)
 	// add to podLister a matching pod that has an ownerRef pointing to the rc,
 	// but ownerRef.Controller is false. Expect a patch to take control it.
@@ -1321,7 +1419,11 @@ func TestPatchPodWithCorrectOwnerRef(t *testing.T) {
 
 func TestPatchPodFails(t *testing.T) {
 	rc := newReplicationController(2)
-	manager, fakePodControl, podInformer, rcInformer := setupManagerWithGCEnabled(rc)
+	manager, fakePodControl, podInformer, rcInformer, error := setupManagerWithGCEnabled(rc)
+	if error != nil {
+		t.Errorf("Failed to create replication controller: %v", error)
+		return
+	}
 	rcInformer.Informer().GetIndexer().Add(rc)
 	// add to podLister two matching pods. Expect two patches to take control
 	// them.
@@ -1346,7 +1448,11 @@ func TestPatchPodFails(t *testing.T) {
 
 func TestPatchExtraPodsThenDelete(t *testing.T) {
 	rc := newReplicationController(2)
-	manager, fakePodControl, podInformer, rcInformer := setupManagerWithGCEnabled(rc)
+	manager, fakePodControl, podInformer, rcInformer, error := setupManagerWithGCEnabled(rc)
+	if error != nil {
+		t.Errorf("Failed to create replication controller: %v", error)
+		return
+	}
 	rcInformer.Informer().GetIndexer().Add(rc)
 	// add to podLister three matching pods. Expect three patches to take control
 	// them, and later delete one of them.
@@ -1363,7 +1469,11 @@ func TestPatchExtraPodsThenDelete(t *testing.T) {
 
 func TestUpdateLabelsRemoveControllerRef(t *testing.T) {
 	rc := newReplicationController(2)
-	manager, fakePodControl, podInformer, rcInformer := setupManagerWithGCEnabled(rc)
+	manager, fakePodControl, podInformer, rcInformer, error := setupManagerWithGCEnabled(rc)
+	if error != nil {
+		t.Errorf("Failed to create replication controller: %v", error)
+		return
+	}
 	rcInformer.Informer().GetIndexer().Add(rc)
 	// put one pod in the podLister
 	pod := newPod("pod", rc, v1.PodRunning, nil, false)
@@ -1401,7 +1511,11 @@ func TestUpdateLabelsRemoveControllerRef(t *testing.T) {
 
 func TestUpdateSelectorControllerRef(t *testing.T) {
 	rc := newReplicationController(2)
-	manager, fakePodControl, podInformer, rcInformer := setupManagerWithGCEnabled(rc)
+	manager, fakePodControl, podInformer, rcInformer, error := setupManagerWithGCEnabled(rc)
+	if error != nil {
+		t.Errorf("Failed to create replication controller: %v", error)
+		return
+	}
 	// put 2 pods in the podLister
 	newPodList(podInformer.Informer().GetIndexer(), 2, v1.PodRunning, rc, "pod")
 	// update the RC so that its selector no longer matches the pods
@@ -1436,7 +1550,11 @@ func TestDoNotAdoptOrCreateIfBeingDeleted(t *testing.T) {
 	rc := newReplicationController(2)
 	now := metav1.Now()
 	rc.DeletionTimestamp = &now
-	manager, fakePodControl, podInformer, rcInformer := setupManagerWithGCEnabled(rc)
+	manager, fakePodControl, podInformer, rcInformer, error := setupManagerWithGCEnabled(rc)
+	if error != nil {
+		t.Errorf("Failed to create replication controller: %v", error)
+		return
+	}
 	rcInformer.Informer().GetIndexer().Add(rc)
 	pod1 := newPod("pod1", rc, v1.PodRunning, nil, false)
 	podInformer.Informer().GetIndexer().Add(pod1)
@@ -1454,7 +1572,11 @@ func TestDoNotAdoptOrCreateIfBeingDeletedRace(t *testing.T) {
 	rc := newReplicationController(2)
 	now := metav1.Now()
 	rc.DeletionTimestamp = &now
-	manager, fakePodControl, podInformer, rcInformer := setupManagerWithGCEnabled(rc)
+	manager, fakePodControl, podInformer, rcInformer, er := setupManagerWithGCEnabled(rc)
+	if er != nil {
+		t.Errorf("Failed to create replication controller: %v", er)
+		return
+	}
 	// Lister (cache) says it's NOT deleted.
 	rc2 := *rc
 	rc2.DeletionTimestamp = nil
@@ -1483,7 +1605,11 @@ func TestReadyReplicas(t *testing.T) {
 	defer testServer.Close()
 
 	c := clientset.NewForConfigOrDie(&restclient.Config{Host: testServer.URL, ContentConfig: restclient.ContentConfig{GroupVersion: &api.Registry.GroupOrDie(v1.GroupName).GroupVersion}})
-	manager, podInformer, rcInformer := newReplicationManagerFromClient(c, BurstReplicas)
+	manager, podInformer, rcInformer, er := newReplicationManagerFromClient(c, BurstReplicas)
+	if er != nil {
+		t.Errorf("Failed to create replication controller: %v", er)
+		return
+	}
 
 	// Status.Replica should update to match number of pods in system, 1 new pod should be created.
 	rc := newReplicationController(2)
@@ -1521,7 +1647,11 @@ func TestAvailableReplicas(t *testing.T) {
 	defer testServer.Close()
 
 	c := clientset.NewForConfigOrDie(&restclient.Config{Host: testServer.URL, ContentConfig: restclient.ContentConfig{GroupVersion: &api.Registry.GroupOrDie(v1.GroupName).GroupVersion}})
-	manager, podInformer, rcInformer := newReplicationManagerFromClient(c, BurstReplicas)
+	manager, podInformer, rcInformer, error := newReplicationManagerFromClient(c, BurstReplicas)
+	if error != nil {
+		t.Errorf("Failed to create replication controller: %v", error)
+		return
+	}
 
 	// Status.Replica should update to match number of pods in system, 1 new pod should be created.
 	rc := newReplicationController(2)

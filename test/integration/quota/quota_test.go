@@ -92,12 +92,16 @@ func TestQuota(t *testing.T) {
 	defer close(controllerCh)
 
 	informers := informers.NewSharedInformerFactory(clientset, controller.NoResyncPeriodFunc())
-	rm := replicationcontroller.NewReplicationManager(
+	rm, err := replicationcontroller.NewReplicationManager(
 		informers.Core().V1().Pods(),
 		informers.Core().V1().ReplicationControllers(),
 		clientset,
 		replicationcontroller.BurstReplicas,
 	)
+	if err != nil {
+		t.Errorf("Failed to create replication controller: %v", err)
+		return
+	}
 	rm.SetEventRecorder(&record.FakeRecorder{})
 	go rm.Run(3, controllerCh)
 
@@ -277,12 +281,16 @@ func TestQuotaLimitedResourceDenial(t *testing.T) {
 	defer close(controllerCh)
 
 	informers := informers.NewSharedInformerFactory(clientset, controller.NoResyncPeriodFunc())
-	rm := replicationcontroller.NewReplicationManager(
+	rm, err := replicationcontroller.NewReplicationManager(
 		informers.Core().V1().Pods(),
 		informers.Core().V1().ReplicationControllers(),
 		clientset,
 		replicationcontroller.BurstReplicas,
 	)
+	if err != nil {
+		t.Errorf("Failed to create replication controller: %v", err)
+		return
+	}
 	rm.SetEventRecorder(&record.FakeRecorder{})
 	go rm.Run(3, controllerCh)
 

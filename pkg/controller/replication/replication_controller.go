@@ -89,9 +89,12 @@ type ReplicationManager struct {
 }
 
 // NewReplicationManager configures a replication manager with the specified event recorder
-func NewReplicationManager(podInformer coreinformers.PodInformer, rcInformer coreinformers.ReplicationControllerInformer, kubeClient clientset.Interface, burstReplicas int) *ReplicationManager {
+func NewReplicationManager(podInformer coreinformers.PodInformer, rcInformer coreinformers.ReplicationControllerInformer, kubeClient clientset.Interface, burstReplicas int) (*ReplicationManager, error) {
 	if kubeClient != nil && kubeClient.Core().RESTClient().GetRateLimiter() != nil {
-		metrics.RegisterMetricAndTrackRateLimiterUsage("replication_controller", kubeClient.Core().RESTClient().GetRateLimiter())
+		err := metrics.RegisterMetricAndTrackRateLimiterUsage("replication_controller", kubeClient.Core().RESTClient().GetRateLimiter())
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	eventBroadcaster := record.NewBroadcaster()
@@ -132,7 +135,7 @@ func NewReplicationManager(podInformer coreinformers.PodInformer, rcInformer cor
 	rm.podListerSynced = podInformer.Informer().HasSynced
 
 	rm.syncHandler = rm.syncReplicationController
-	return rm
+	return rm, nil
 }
 
 // SetEventRecorder replaces the event recorder used by the replication manager

@@ -219,12 +219,16 @@ func startEndpointController(ctx ControllerContext) (bool, error) {
 }
 
 func startReplicationController(ctx ControllerContext) (bool, error) {
-	go replicationcontroller.NewReplicationManager(
+	rm, err := replicationcontroller.NewReplicationManager(
 		ctx.InformerFactory.Core().V1().Pods(),
 		ctx.InformerFactory.Core().V1().ReplicationControllers(),
 		ctx.ClientBuilder.ClientOrDie("replication-controller"),
 		replicationcontroller.BurstReplicas,
-	).Run(int(ctx.Options.ConcurrentRCSyncs), ctx.Stop)
+	)
+	if err != nil {
+		return false, fmt.Errorf("Failed to start replication controller: %v", err)
+	}
+	go rm.Run(int(ctx.Options.ConcurrentRCSyncs), ctx.Stop)
 	return true, nil
 }
 
