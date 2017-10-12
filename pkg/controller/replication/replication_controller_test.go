@@ -649,9 +649,9 @@ func TestWatchPods(t *testing.T) {
 }
 
 func TestUpdatePods(t *testing.T) {
-	manager, podInformer, rcInformer, error := newReplicationManagerFromClient(fake.NewSimpleClientset(), BurstReplicas)
-	if error != nil {
-		t.Errorf("Failed to create replication controller: %v", error)
+	manager, podInformer, rcInformer, err := newReplicationManagerFromClient(fake.NewSimpleClientset(), BurstReplicas)
+	if err != nil {
+		t.Errorf("Failed to create replication controller: %v", err)
 		return
 	}
 
