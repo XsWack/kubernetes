@@ -50,13 +50,15 @@ func TestSetKubernetesDefaults(t *testing.T) {
 			false,
 		},
 		// Add this test back when we fixed config and SetKubernetesDefaults
-		// {
-		// 	restclient.Config{
-		// 		GroupVersion: &schema.GroupVersion{Group: "not.a.group", Version: "not_an_api"},
-		// 	},
-		// 	restclient.Config{},
-		// 	true,
-		// },
+		 {
+		 	restclient.Config{
+				ContentConfig: restclient.ContentConfig{
+					GroupVersion: &schema.GroupVersion{Group: "not.a.group", Version: "not_an_api"},
+				},
+		 	},
+		 	restclient.Config{},
+		 	true,
+		 },
 	}
 	for _, testCase := range testCases {
 		val := &testCase.Config
@@ -147,7 +149,7 @@ func TestSetsCodec(t *testing.T) {
 			NegotiatedSerializer: testapi.Default.NegotiatedSerializer(),
 		},
 		// Add this test back when we fixed config and SetKubernetesDefaults
-		// "invalidVersion":                       {true, "", nil},
+		 "invalidVersion":                       {true, "", nil},
 	}
 	for version, expected := range testCases {
 		conf := &restclient.Config{

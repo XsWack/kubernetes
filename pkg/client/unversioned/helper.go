@@ -31,7 +31,6 @@ const (
 
 // SetKubernetesDefaults sets default values on the provided client config for accessing the
 // Kubernetes API or returns an error if any of the defaults are impossible or invalid.
-// TODO: this method needs to be split into one that sets defaults per group, expected to be fix in PR "Refactoring clientcache.go and helper.go #14592"
 func SetKubernetesDefaults(config *restclient.Config) error {
 	if config.APIPath == "" {
 		config.APIPath = legacyAPIPath
