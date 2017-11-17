@@ -19,7 +19,7 @@ package explain
 import (
 	"testing"
 
-	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/kubernetes/staging/src/k8s.io/apimachinery/pkg/runtime/schema"
 )
 
 func TestFindField(t *testing.T) {

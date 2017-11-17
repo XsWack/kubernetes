@@ -20,7 +20,7 @@ import (
 	"bytes"
 	"testing"
 
-	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/kubernetes/staging/src/k8s.io/apimachinery/pkg/runtime/schema"
 )
 
 func TestModel(t *testing.T) {
