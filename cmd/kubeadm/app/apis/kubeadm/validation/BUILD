@@ -32,6 +32,7 @@ go_library(
         "//cmd/kubeadm/app/util:go_default_library",
         "//cmd/kubeadm/app/util/token:go_default_library",
         "//pkg/apis/core/validation:go_default_library",
+        "//pkg/bootstrap/api:go_default_library",
         "//pkg/kubeapiserver/authorizer/modes:go_default_library",
         "//pkg/proxy/apis/kubeproxyconfig:go_default_library",
         "//pkg/proxy/apis/kubeproxyconfig/scheme:go_default_library",

@@ -17,6 +17,7 @@ limitations under the License.
 package validation
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -338,9 +339,9 @@ func TestValidateMasterConfiguration(t *testing.T) {
 				KubeProxy: kubeadm.KubeProxy{
 					Config: &kubeproxyconfigv1alpha1.KubeProxyConfiguration{
 						Conntrack: kubeproxyconfigv1alpha1.KubeProxyConntrackConfiguration{
-							Max:        pointer.Int32Ptr(2),
-							MaxPerCore: pointer.Int32Ptr(1),
-							Min:        pointer.Int32Ptr(1),
+							Max:                   pointer.Int32Ptr(2),
+							MaxPerCore:            pointer.Int32Ptr(1),
+							Min:                   pointer.Int32Ptr(1),
 							TCPEstablishedTimeout: &metav1.Duration{Duration: 5 * time.Second},
 							TCPCloseWaitTimeout:   &metav1.Duration{Duration: 5 * time.Second},
 						},
@@ -499,6 +500,66 @@ func TestValidateIgnorePreflightErrors(t *testing.T) {
 			t.Errorf("ValidateIgnorePreflightErrors: expected error for input (%s, %v) but got: %v", rt.ignorePreflightErrors, rt.skipPreflightChecks, result)
 		case result.Len() != rt.expectedLen:
 			t.Errorf("ValidateIgnorePreflightErrors: expected Len = %d for input (%s, %v) but got: %v, %v", rt.expectedLen, rt.ignorePreflightErrors, rt.skipPreflightChecks, result.Len(), result)
+		}
+	}
+}
+
+func TestValidateTokenUsages(t *testing.T) {
+	var tests = []struct {
+		name     string
+		s        []string
+		f        *field.Path
+		expected bool
+	}{
+		{"valid of signing", []string{"signing"}, nil, true},
+		{"valid of authentication", []string{"authentication"}, nil, true},
+		{"all valid", []string{"authentication", "signing"}, nil, true},
+		{"single invalid", []string{"authentication", "foo"}, nil, false},
+		{"all invalid", []string{"foo", "bar"}, nil, false},
+	}
+	for _, rt := range tests {
+		actual := ValidateTokenUsages(rt.s, rt.f)
+		if (len(actual) == 0) != rt.expected {
+			t.Errorf(
+				"failed ValidateTokenUsages:\n\ttest case:%t\n\t  texpected: %t\n\t  actual: %t",
+				rt.name,
+				rt.expected,
+				len(actual) == 0,
+			)
+		}
+	}
+}
+
+func TestValidateTokenExtraGroups(t *testing.T) {
+	var tests = []struct {
+		name     string
+		s        []string
+		f        *field.Path
+		expected bool
+	}{
+
+		{"valid", []string{"system:bootstrappers:foo"}, nil, true},
+		{"valid nested", []string{"system:bootstrappers:foo:bar:baz"}, nil, true},
+		{"valid with dashes and number", []string{"system:bootstrappers:foo-bar-42"}, nil, true},
+		{"invalid uppercase", []string{"system:bootstrappers:Foo"}, nil, false},
+		{"missing prefix", []string{"foo"}, nil, false},
+		{"prefix with no body", []string{"system:bootstrappers:", "system:bootstrappers:foo"}, nil, false},
+		{"invalid spaces", []string{"system:bootstrappers: "}, nil, false},
+		{"invalid asterisk", []string{"system:bootstrappers:*", "system:bootstrappers:foo"}, nil, false},
+		{"trailing colon", []string{"system:bootstrappers:foo:"}, nil, false},
+		{"trailing dash", []string{"system:bootstrappers:foo-", "system:bootstrappers:foo"}, nil, false},
+		{"script tags", []string{"system:bootstrappers:<script> alert(\"scary?!\") </script>"}, nil, false},
+		{"too long", []string{"system:bootstrappers:" + strings.Repeat("x", 300)}, nil, false},
+	}
+	for _, rt := range tests {
+		actual := ValidateTokenExtraGroups(rt.s, rt.f)
+		if (len(actual) == 0) != rt.expected {
+			t.Errorf(
+				"failed ValidateTokenExtraGroups:\n\ttest case:%t\n\t  expected: %t\n\t  actual: %t",
+				rt.name,
+				rt.expected,
+				len(actual) == 0,
+			)
 		}
 	}
 }

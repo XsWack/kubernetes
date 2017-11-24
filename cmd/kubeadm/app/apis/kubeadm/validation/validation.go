@@ -35,6 +35,7 @@ import (
 	kubeadmutil "k8s.io/kubernetes/cmd/kubeadm/app/util"
 	tokenutil "k8s.io/kubernetes/cmd/kubeadm/app/util/token"
 	apivalidation "k8s.io/kubernetes/pkg/apis/core/validation"
+	bootstrapapi "k8s.io/kubernetes/pkg/bootstrap/api"
 	authzmodes "k8s.io/kubernetes/pkg/kubeapiserver/authorizer/modes"
 	"k8s.io/kubernetes/pkg/proxy/apis/kubeproxyconfig"
 	kubeproxyscheme "k8s.io/kubernetes/pkg/proxy/apis/kubeproxyconfig/scheme"
@@ -72,6 +73,8 @@ func ValidateMasterConfiguration(c *kubeadm.MasterConfiguration) field.ErrorList
 	allErrs = append(allErrs, ValidateAbsolutePath(c.CertificatesDir, field.NewPath("certificates-dir"))...)
 	allErrs = append(allErrs, ValidateNodeName(c.NodeName, field.NewPath("node-name"))...)
 	allErrs = append(allErrs, ValidateToken(c.Token, field.NewPath("token"))...)
+	allErrs = append(allErrs, ValidateTokenUsages(c.TokenUsages, field.NewPath("token-usages"))...)
+	allErrs = append(allErrs, ValidateTokenExtraGroups(c.TokenExtraGroups, field.NewPath("token-extra-groups"))...)
 	allErrs = append(allErrs, ValidateFeatureGates(c.FeatureGates, field.NewPath("feature-gates"))...)
 	allErrs = append(allErrs, ValidateAPIEndpoint(c, field.NewPath("api-endpoint"))...)
 	//allErrs = append(allErrs, ValidateProxy(c, field.NewPath("kube-proxy"))...)
@@ -369,3 +372,28 @@ func ValidateIgnorePreflightErrors(ignorePreflightErrors []string, skipPreflight
 
 	return ignoreErrors, allErrs.ToAggregate()
 }
+
+// ValidateTokenUsages validates token usages and collects all encountered errors
+func ValidateTokenUsages(tokenUsages []string, fldPath *field.Path) field.ErrorList {
+	allErrs := field.ErrorList{}
+	usageAuthentication := strings.TrimPrefix(bootstrapapi.BootstrapTokenUsageAuthentication, bootstrapapi.BootstrapTokenUsagePrefix)
+	usageSigning := strings.TrimPrefix(bootstrapapi.BootstrapTokenUsageSigningKey, bootstrapapi.BootstrapTokenUsagePrefix)
+	for _, tokenUsage := range tokenUsages {
+		if tokenUsage != usageAuthentication && tokenUsage != usageSigning {
+			allErrs = append(allErrs, field.Invalid(fldPath, tokenUsage, "invalid token usage"))
+		}
+	}
+	return allErrs
+}
+
+// ValidateTokenExtraGroups validates token extra groups and collects all encountered errors
+func ValidateTokenExtraGroups(tokenExtraGroups []string, fldPath *field.Path) field.ErrorList {
+	allErrs := field.ErrorList{}
+	for _, tokenExtraGroup := range tokenExtraGroups {
+		if err := bootstrapapi.ValidateBootstrapGroupName(tokenExtraGroup); err != nil {
+			allErrs = append(allErrs, field.Invalid(fldPath, tokenExtraGroup, "invalid token extra group"))
+		}
+	}
+	return allErrs
+}
+
