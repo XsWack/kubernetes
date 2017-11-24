@@ -203,6 +203,8 @@ func autoConvert_v1alpha1_MasterConfiguration_To_kubeadm_MasterConfiguration(in 
 	out.AuthorizationModes = *(*[]string)(unsafe.Pointer(&in.AuthorizationModes))
 	out.Token = in.Token
 	out.TokenTTL = (*v1.Duration)(unsafe.Pointer(in.TokenTTL))
+	out.TokenUsages = *(*[]string)(unsafe.Pointer(&in.TokenUsages))
+	out.TokenExtraGroups = *(*[]string)(unsafe.Pointer(&in.TokenExtraGroups))
 	out.APIServerExtraArgs = *(*map[string]string)(unsafe.Pointer(&in.APIServerExtraArgs))
 	out.ControllerManagerExtraArgs = *(*map[string]string)(unsafe.Pointer(&in.ControllerManagerExtraArgs))
 	out.SchedulerExtraArgs = *(*map[string]string)(unsafe.Pointer(&in.SchedulerExtraArgs))
@@ -244,6 +246,8 @@ func autoConvert_kubeadm_MasterConfiguration_To_v1alpha1_MasterConfiguration(in 
 	out.AuthorizationModes = *(*[]string)(unsafe.Pointer(&in.AuthorizationModes))
 	out.Token = in.Token
 	out.TokenTTL = (*v1.Duration)(unsafe.Pointer(in.TokenTTL))
+	out.TokenUsages = *(*[]string)(unsafe.Pointer(&in.TokenUsages))
+	out.TokenExtraGroups = *(*[]string)(unsafe.Pointer(&in.TokenExtraGroups))
 	out.APIServerExtraArgs = *(*map[string]string)(unsafe.Pointer(&in.APIServerExtraArgs))
 	out.ControllerManagerExtraArgs = *(*map[string]string)(unsafe.Pointer(&in.ControllerManagerExtraArgs))
 	out.SchedulerExtraArgs = *(*map[string]string)(unsafe.Pointer(&in.SchedulerExtraArgs))

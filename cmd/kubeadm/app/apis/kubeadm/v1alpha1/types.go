@@ -39,10 +39,10 @@ type MasterConfiguration struct {
 	NodeName             string               `json:"nodeName"`
 	AuthorizationModes   []string             `json:"authorizationModes,omitempty"`
 
-	Token    string           `json:"token"`
-	TokenTTL *metav1.Duration `json:"tokenTTL,omitempty"`
-	TokenUsages []string `json:"tokenUsages,omitempty"`
-	TokenExtraGroups []string `json:"tokenExtraGroups,omitempty"`
+	Token            string           `json:"token"`
+	TokenTTL         *metav1.Duration `json:"tokenTTL,omitempty"`
+	TokenUsages      []string         `json:"tokenUsages,omitempty"`
+	TokenExtraGroups []string         `json:"tokenExtraGroups,omitempty"`
 
 	APIServerExtraArgs         map[string]string `json:"apiServerExtraArgs,omitempty"`
 	ControllerManagerExtraArgs map[string]string `json:"controllerManagerExtraArgs,omitempty"`

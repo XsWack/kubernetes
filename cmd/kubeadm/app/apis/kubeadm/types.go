@@ -39,9 +39,9 @@ type MasterConfiguration struct {
 	NodeName             string
 	AuthorizationModes   []string
 
-	Token    string
-	TokenTTL *metav1.Duration
-	TokenUsages []string
+	Token            string
+	TokenTTL         *metav1.Duration
+	TokenUsages      []string
 	TokenExtraGroups []string
 
 	APIServerExtraArgs         map[string]string
