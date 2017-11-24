@@ -41,6 +41,8 @@ type MasterConfiguration struct {
 
 	Token    string
 	TokenTTL *metav1.Duration
+	TokenUsages []string
+	TokenExtraGroups []string
 
 	APIServerExtraArgs         map[string]string
 	ControllerManagerExtraArgs map[string]string
