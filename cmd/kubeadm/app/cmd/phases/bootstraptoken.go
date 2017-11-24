@@ -26,6 +26,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
 	clientset "k8s.io/client-go/kubernetes"
+	kubeadmapi "k8s.io/kubernetes/cmd/kubeadm/app/apis/kubeadm"
 	kubeadmapiext "k8s.io/kubernetes/cmd/kubeadm/app/apis/kubeadm/v1alpha1"
 	"k8s.io/kubernetes/cmd/kubeadm/app/apis/kubeadm/validation"
 	cmdutil "k8s.io/kubernetes/cmd/kubeadm/app/cmd/util"
@@ -120,7 +121,6 @@ func NewSubCmdBootstrapTokenAll(kubeConfigFile *string) *cobra.Command {
 	legacyscheme.Scheme.Default(cfg)
 
 	var cfgPath, description string
-	var usages, extraGroups []string
 	var skipTokenPrint bool
 
 	cmd := &cobra.Command{
@@ -132,11 +132,18 @@ func NewSubCmdBootstrapTokenAll(kubeConfigFile *string) *cobra.Command {
 			err := validation.ValidateMixedArguments(cmd.Flags())
 			kubeadmutil.CheckErr(err)
 
+			legacyscheme.Scheme.Default(cfg)
+			internalcfg := &kubeadmapi.MasterConfiguration{}
+			err = legacyscheme.Scheme.Convert(cfg, internalcfg, nil)
+
+			err = validation.ValidateMasterConfiguration(internalcfg).ToAggregate()
+			kubeadmutil.CheckErr(err)
+
 			client, err := kubeconfigutil.ClientSetFromFile(*kubeConfigFile)
 			kubeadmutil.CheckErr(err)
 
 			// Creates the bootstap token
-			err = createBootstrapToken(client, cfgPath, cfg, description, usages, extraGroups, skipTokenPrint)
+			err = createBootstrapToken(client, cfgPath, cfg, description, skipTokenPrint)
 			kubeadmutil.CheckErr(err)
 
 			// Create the cluster-info ConfigMap or update if it already exists
@@ -162,7 +169,7 @@ func NewSubCmdBootstrapTokenAll(kubeConfigFile *string) *cobra.Command {
 	}
 
 	// Adds flags to the command
-	addBootstrapTokenFlags(cmd.Flags(), cfg, &cfgPath, &description, &usages, &extraGroups, &skipTokenPrint)
+	addBootstrapTokenFlags(cmd.Flags(), cfg, &cfgPath, &description, &skipTokenPrint)
 
 	return cmd
 }
@@ -179,7 +186,6 @@ func NewSubCmdBootstrapToken(kubeConfigFile *string) *cobra.Command {
 	legacyscheme.Scheme.Default(cfg)
 
 	var cfgPath, description string
-	var usages, extraGroups []string
 	var skipTokenPrint bool
 
 	cmd := &cobra.Command{
@@ -190,16 +196,23 @@ func NewSubCmdBootstrapToken(kubeConfigFile *string) *cobra.Command {
 			err := validation.ValidateMixedArguments(cmd.Flags())
 			kubeadmutil.CheckErr(err)
 
+			legacyscheme.Scheme.Default(cfg)
+			internalcfg := &kubeadmapi.MasterConfiguration{}
+			err = legacyscheme.Scheme.Convert(cfg, internalcfg, nil)
+
+			err = validation.ValidateMasterConfiguration(internalcfg).ToAggregate()
+			kubeadmutil.CheckErr(err)
+
 			client, err := kubeconfigutil.ClientSetFromFile(*kubeConfigFile)
 			kubeadmutil.CheckErr(err)
 
-			err = createBootstrapToken(client, cfgPath, cfg, description, usages, extraGroups, skipTokenPrint)
+			err = createBootstrapToken(client, cfgPath, cfg, description, skipTokenPrint)
 			kubeadmutil.CheckErr(err)
 		},
 	}
 
 	// Adds flags to the command
-	addBootstrapTokenFlags(cmd.Flags(), cfg, &cfgPath, &description, &usages, &extraGroups, &skipTokenPrint)
+	addBootstrapTokenFlags(cmd.Flags(), cfg, &cfgPath, &description, &skipTokenPrint)
 
 	return cmd
 }
@@ -282,7 +295,7 @@ func NewSubCmdNodeBootstrapTokenAutoApprove(kubeConfigFile *string) *cobra.Comma
 	return cmd
 }
 
-func addBootstrapTokenFlags(flagSet *pflag.FlagSet, cfg *kubeadmapiext.MasterConfiguration, cfgPath, description *string, usages, extraGroups *[]string, skipTokenPrint *bool) {
+func addBootstrapTokenFlags(flagSet *pflag.FlagSet, cfg *kubeadmapiext.MasterConfiguration, cfgPath, description *string, skipTokenPrint *bool) {
 	flagSet.StringVar(
 		cfgPath, "config", *cfgPath,
 		"Path to kubeadm config file (WARNING: Usage of a configuration file is experimental)",
@@ -300,11 +313,11 @@ func addBootstrapTokenFlags(flagSet *pflag.FlagSet, cfg *kubeadmapiext.MasterCon
 		"The duration before the token is automatically deleted (e.g. 1s, 2m, 3h). If set to '0', the token will never expire",
 	)
 	flagSet.StringSliceVar(
-		usages, "usages", kubeadmconstants.DefaultTokenUsages,
+		&cfg.TokenUsages, "usages", cfg.TokenUsages,
 		fmt.Sprintf("Describes the ways in which this token can be used. You can pass --usages multiple times or provide a comma separated list of options. Valid options: [%s]", strings.Join(kubeadmconstants.DefaultTokenUsages, ",")),
 	)
 	flagSet.StringSliceVar(
-		extraGroups, "groups", []string{kubeadmconstants.NodeBootstrapTokenAuthGroup},
+		&cfg.TokenExtraGroups, "groups", cfg.TokenExtraGroups,
 		fmt.Sprintf("Extra groups that this token will authenticate as when used for authentication. Must match %q", bootstrapapi.BootstrapGroupPattern),
 	)
 	flagSet.StringVar(
@@ -317,16 +330,16 @@ func addBootstrapTokenFlags(flagSet *pflag.FlagSet, cfg *kubeadmapiext.MasterCon
 	)
 }
 
-func createBootstrapToken(client clientset.Interface, cfgPath string, cfg *kubeadmapiext.MasterConfiguration, description string, usages, extraGroups []string, skipTokenPrint bool) error {
+func createBootstrapToken(client clientset.Interface, cfgPath string, cfg *kubeadmapiext.MasterConfiguration, description string, skipTokenPrint bool) error {
 	// adding groups only makes sense for authentication
-	usagesSet := sets.NewString(usages...)
+	usagesSet := sets.NewString(cfg.TokenUsages...)
 	usageAuthentication := strings.TrimPrefix(bootstrapapi.BootstrapTokenUsageAuthentication, bootstrapapi.BootstrapTokenUsagePrefix)
-	if len(extraGroups) > 0 && !usagesSet.Has(usageAuthentication) {
+	if len(cfg.TokenExtraGroups) > 0 && !usagesSet.Has(usageAuthentication) {
 		return fmt.Errorf("--groups cannot be specified unless --usages includes %q", usageAuthentication)
 	}
 
 	// validate any extra group names
-	for _, group := range extraGroups {
+	for _, group := range cfg.TokenExtraGroups {
 		if err := bootstrapapi.ValidateBootstrapGroupName(group); err != nil {
 			return err
 		}
@@ -343,7 +356,7 @@ func createBootstrapToken(client clientset.Interface, cfgPath string, cfg *kubea
 	}
 
 	// Creates or updates the token
-	if err := node.UpdateOrCreateToken(client, internalcfg.Token, false, internalcfg.TokenTTL.Duration, usages, extraGroups, description); err != nil {
+	if err := node.UpdateOrCreateToken(client, internalcfg.Token, false, internalcfg.TokenTTL.Duration, cfg.TokenUsages, cfg.TokenExtraGroups, description); err != nil {
 		return err
 	}
 
