@@ -339,9 +339,9 @@ func TestValidateMasterConfiguration(t *testing.T) {
 				KubeProxy: kubeadm.KubeProxy{
 					Config: &kubeproxyconfigv1alpha1.KubeProxyConfiguration{
 						Conntrack: kubeproxyconfigv1alpha1.KubeProxyConntrackConfiguration{
-							Max:                   pointer.Int32Ptr(2),
-							MaxPerCore:            pointer.Int32Ptr(1),
-							Min:                   pointer.Int32Ptr(1),
+							Max:        pointer.Int32Ptr(2),
+							MaxPerCore: pointer.Int32Ptr(1),
+							Min:        pointer.Int32Ptr(1),
 							TCPEstablishedTimeout: &metav1.Duration{Duration: 5 * time.Second},
 							TCPCloseWaitTimeout:   &metav1.Duration{Duration: 5 * time.Second},
 						},

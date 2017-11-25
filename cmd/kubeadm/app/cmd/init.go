@@ -62,7 +62,6 @@ import (
 	"k8s.io/kubernetes/pkg/api/legacyscheme"
 	bootstrapapi "k8s.io/kubernetes/pkg/bootstrap/api"
 	utilsexec "k8s.io/utils/exec"
-	bootstrapapi "k8s.io/kubernetes/pkg/bootstrap/api"
 )
 
 var (

@@ -39,6 +39,8 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	clientcertutil "k8s.io/client-go/util/cert"
 	kubeadmapi "k8s.io/kubernetes/cmd/kubeadm/app/apis/kubeadm"
+	kubeadmapiext "k8s.io/kubernetes/cmd/kubeadm/app/apis/kubeadm/v1alpha1"
+	"k8s.io/kubernetes/cmd/kubeadm/app/apis/kubeadm/validation"
 	cmdutil "k8s.io/kubernetes/cmd/kubeadm/app/cmd/util"
 	kubeadmconstants "k8s.io/kubernetes/cmd/kubeadm/app/constants"
 	tokenphase "k8s.io/kubernetes/cmd/kubeadm/app/phases/bootstraptoken/node"
@@ -47,6 +49,7 @@ import (
 	kubeconfigutil "k8s.io/kubernetes/cmd/kubeadm/app/util/kubeconfig"
 	"k8s.io/kubernetes/cmd/kubeadm/app/util/pubkeypin"
 	tokenutil "k8s.io/kubernetes/cmd/kubeadm/app/util/token"
+	"k8s.io/kubernetes/pkg/api/legacyscheme"
 	api "k8s.io/kubernetes/pkg/apis/core"
 	bootstrapapi "k8s.io/kubernetes/pkg/bootstrap/api"
 	"k8s.io/kubernetes/pkg/printers"
@@ -95,9 +98,9 @@ func NewCmdToken(out io.Writer, errW io.Writer) *cobra.Command {
 	tokenCmd.PersistentFlags().BoolVar(&dryRun,
 		"dry-run", dryRun, "Whether to enable dry-run mode or not")
 
-	var usages []string
-	var extraGroups []string
-	var tokenDuration time.Duration
+	cfg := &kubeadmapiext.MasterConfiguration{}
+	legacyscheme.Scheme.Default(cfg)
+
 	var description string
 	var printJoinCommand bool
 	createCmd := &cobra.Command{
@@ -112,22 +115,30 @@ func NewCmdToken(out io.Writer, errW io.Writer) *cobra.Command {
 			If no [token] is given, kubeadm will generate a random token instead.
 		`),
 		Run: func(tokenCmd *cobra.Command, args []string) {
-			token := ""
+			var err error
+
+			legacyscheme.Scheme.Default(cfg)
+			internalcfg := &kubeadmapi.MasterConfiguration{}
+			legacyscheme.Scheme.Convert(cfg, internalcfg, nil)
+
+			err = validation.ValidateMasterConfiguration(internalcfg).ToAggregate()
+			kubeadmutil.CheckErr(err)
+
 			if len(args) != 0 {
-				token = args[0]
+				internalcfg.Token = args[0]
 			}
 			client, err := getClientset(kubeConfigFile, dryRun)
 			kubeadmutil.CheckErr(err)
 
-			err = RunCreateToken(out, client, token, tokenDuration, usages, extraGroups, description, printJoinCommand, kubeConfigFile)
+			err = RunCreateToken(out, client, internalcfg, description, printJoinCommand, kubeConfigFile)
 			kubeadmutil.CheckErr(err)
 		},
 	}
-	createCmd.Flags().DurationVar(&tokenDuration,
+	createCmd.Flags().DurationVar(&cfg.TokenTTL.Duration,
 		"ttl", kubeadmconstants.DefaultTokenDuration, "The duration before the token is automatically deleted (e.g. 1s, 2m, 3h). If set to '0', the token will never expire.")
-	createCmd.Flags().StringSliceVar(&usages,
+	createCmd.Flags().StringSliceVar(&cfg.TokenUsages,
 		"usages", kubeadmconstants.DefaultTokenUsages, fmt.Sprintf("Describes the ways in which this token can be used. You can pass --usages multiple times or provide a comma separated list of options. Valid options: [%s].", strings.Join(kubeadmconstants.DefaultTokenUsages, ",")))
-	createCmd.Flags().StringSliceVar(&extraGroups,
+	createCmd.Flags().StringSliceVar(&cfg.TokenExtraGroups,
 		"groups", []string{kubeadmconstants.NodeBootstrapTokenAuthGroup},
 		fmt.Sprintf("Extra groups that this token will authenticate as when used for authentication. Must match %q.", bootstrapapi.BootstrapGroupPattern))
 	createCmd.Flags().StringVar(&description,
@@ -203,40 +214,28 @@ func NewCmdTokenGenerate(out io.Writer) *cobra.Command {
 }
 
 // RunCreateToken generates a new bootstrap token and stores it as a secret on the server.
-func RunCreateToken(out io.Writer, client clientset.Interface, token string, tokenDuration time.Duration, usages []string, extraGroups []string, description string, printJoinCommand bool, kubeConfigFile string) error {
-	if len(token) == 0 {
+func RunCreateToken(out io.Writer, client clientset.Interface, cfg *kubeadmapi.MasterConfiguration, description string, printJoinCommand bool, kubeConfigFile string) error {
+	if len(cfg.Token) == 0 {
 		var err error
-		token, err = tokenutil.GenerateToken()
+		cfg.Token, err = tokenutil.GenerateToken()
 		if err != nil {
 			return err
 		}
 	} else {
-		_, _, err := tokenutil.ParseToken(token)
+		_, _, err := tokenutil.ParseToken(cfg.Token)
 		if err != nil {
 			return err
 		}
 	}
 
 	// adding groups only makes sense for authentication
-	usagesSet := sets.NewString(usages...)
+	usagesSet := sets.NewString(cfg.TokenUsages...)
 	usageAuthentication := strings.TrimPrefix(bootstrapapi.BootstrapTokenUsageAuthentication, bootstrapapi.BootstrapTokenUsagePrefix)
-	if len(extraGroups) > 0 && !usagesSet.Has(usageAuthentication) {
+	if len(cfg.TokenExtraGroups) > 0 && !usagesSet.Has(usageAuthentication) {
 		return fmt.Errorf("--groups cannot be specified unless --usages includes %q", usageAuthentication)
 	}
 
-	// validate any extra group names
-	for _, group := range extraGroups {
-		if err := bootstrapapi.ValidateBootstrapGroupName(group); err != nil {
-			return err
-		}
-	}
-
-	// validate usages
-	if err := bootstrapapi.ValidateUsages(usages); err != nil {
-		return err
-	}
-
-	err := tokenphase.CreateNewToken(client, token, tokenDuration, usages, extraGroups, description)
+	err := tokenphase.CreateNewToken(client, cfg.Token, cfg.TokenTTL.Duration, cfg.TokenUsages, cfg.TokenExtraGroups, description)
 	if err != nil {
 		return err
 	}
@@ -244,13 +243,13 @@ func RunCreateToken(out io.Writer, client clientset.Interface, token string, tok
 	// if --print-join-command was specified, print the full `kubeadm join` command
 	// otherwise, just print the token
 	if printJoinCommand {
-		joinCommand, err := getJoinCommand(token, kubeConfigFile)
+		joinCommand, err := getJoinCommand(cfg.Token, kubeConfigFile)
 		if err != nil {
 			return fmt.Errorf("failed to get join command: %v", err)
 		}
 		fmt.Fprintln(out, joinCommand)
 	} else {
-		fmt.Fprintln(out, token)
+		fmt.Fprintln(out, cfg.Token)
 	}
 
 	return nil

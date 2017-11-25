@@ -396,4 +396,3 @@ func ValidateTokenExtraGroups(tokenExtraGroups []string, fldPath *field.Path) fi
 	}
 	return allErrs
 }
-
