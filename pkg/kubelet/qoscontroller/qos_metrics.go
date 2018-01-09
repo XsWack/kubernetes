@@ -155,7 +155,7 @@ func qosAcquireNodeMetrics(qosResourceStatus *QosResourceStatus) error {
 }
 
 // qosAcquirePodMetrics calculates/gathers all resources for each of the pod and fills up the map
-func qosAcquirePodMetrics(pod *api.Pod, qosResourceStatus *QosResourceStatus) error {
+func qosAcquirePodMetrics(pod *v1.Pod, qosResourceStatus *QosResourceStatus) error {
 	acquireMemoryMetrics(pod, qosResourceStatus)
 	acquireDiskIOMetrics(pod, qosResourceStatus)
 	acquireNetworkIOMetrics(pod, qosResourceStatus)

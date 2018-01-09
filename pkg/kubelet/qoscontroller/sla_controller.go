@@ -21,7 +21,7 @@ import (
 	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/kubernetes/pkg/apis/extensions"
+	extensions "k8s.io/api/extensions/v1beta1"
 	"k8s.io/kubernetes/plugin/pkg/admission/formatdeployment"
 	"net/http"
 	"fmt"
@@ -168,7 +168,7 @@ qosResourceStatus *QosResourceStatus) ([]extensions.Deployment, error) {
 func (sc *SlaController) GetPodDeploymentFromApiServer(pod *v1.Pod,
 qosResourceStatus *QosResourceStatus) (*extensions.Deployment, error) {
 	var selector labels.Selector
-	rss, err := qosResourceStatus.kubeClient.Extensions().ReplicaSets(pod.Namespace).List(api.ListOptions{})
+	rss, err := qosResourceStatus.kubeClient.Extensions().ReplicaSets(pod.Namespace).List(metav1.ListOptions{})
 
 	if err != nil {
 		return nil, fmt.Errorf("Failed list replica sets for pod target latency: %v", err)
