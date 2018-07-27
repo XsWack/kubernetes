@@ -138,6 +138,7 @@ func TestPriorityMetadata(t *testing.T) {
 			pod: podWithTolerationsAndRequests,
 			expected: &priorityMetadata{
 				nonZeroRequest: specifiedReqs,
+				resourceLimit:  specifiedReqs,
 				podTolerations: tolerations,
 				affinity:       nil,
 			},
@@ -147,6 +148,7 @@ func TestPriorityMetadata(t *testing.T) {
 			pod: podWithAffinityAndRequests,
 			expected: &priorityMetadata{
 				nonZeroRequest: specifiedReqs,
+				resourceLimit:  specifiedReqs,
 				podTolerations: nil,
 				affinity:       podAffinity,
 			},
