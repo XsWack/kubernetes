@@ -464,7 +464,7 @@ func newPodTemplate(labels map[string]string) *v1.PodTemplateSpec {
 		},
 		Spec: v1.PodSpec{
 			Containers: []v1.Container{
-				// This container writes its pod Name to a file in the Regional PD
+				// This container writes its pod name to a file in the Regional PD
 				// and prints the entire file to stdout.
 				{
 					Name:    "busybox",
@@ -479,7 +479,7 @@ func newPodTemplate(labels map[string]string) *v1.PodTemplateSpec {
 						Name: "POD_NAME",
 						ValueFrom: &v1.EnvVarSource{
 							FieldRef: &v1.ObjectFieldSelector{
-								FieldPath: "metadata.Name",
+								FieldPath: "metadata.name",
 							},
 						},
 					}},

@@ -497,7 +497,7 @@ func getControllerStorageMetrics(ms metrics.ControllerManagerMetrics) map[string
 }
 
 // Finds the sample in the specified metric from `KubeletMetrics` tagged with
-// the specified namespace and pvc Name
+// the specified namespace and pvc name
 func findVolumeStatMetric(metricKeyName string, namespace string, pvcName string, kubeletMetrics metrics.KubeletMetrics) bool {
 	found := false
 	errCount := 0

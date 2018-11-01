@@ -52,7 +52,7 @@ import (
 )
 
 const (
-	// Plugin Name of the external provisioner
+	// Plugin name of the external provisioner
 	externalPluginName = "example.com/nfs"
 )
 
@@ -601,7 +601,7 @@ var _ = utils.SIGDescribe("Dynamic Provisioning", func() {
 						APIVersion: "v1",
 						UID:        types.UID("01234567890"),
 						Namespace:  ns,
-						Name:       "dummy-claim-Name",
+						Name:       "dummy-claim-name",
 					},
 				},
 			}
@@ -1105,7 +1105,7 @@ func getStorageClass(
 			Kind: "StorageClass",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			// Name must be unique, so let's base it on namespace Name
+			// Name must be unique, so let's base it on namespace name
 			Name: ns + "-" + suffix,
 		},
 		Provisioner:       provisioner,

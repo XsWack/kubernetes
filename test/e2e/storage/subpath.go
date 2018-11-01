@@ -91,7 +91,7 @@ var _ = utils.SIGDescribe("Subpath", func() {
 		framework.ConformanceIt("should support subpaths with downward pod", func() {
 			pod := testsuites.SubpathTestPod(f, "downward/podname", "downwardAPI", &v1.VolumeSource{
 				DownwardAPI: &v1.DownwardAPIVolumeSource{
-					Items: []v1.DownwardAPIVolumeFile{{Path: "downward/podname", FieldRef: &v1.ObjectFieldSelector{APIVersion: "v1", FieldPath: "metadata.Name"}}},
+					Items: []v1.DownwardAPIVolumeFile{{Path: "downward/podname", FieldRef: &v1.ObjectFieldSelector{APIVersion: "v1", FieldPath: "metadata.name"}}},
 				},
 			}, privilegedSecurityContext)
 			testsuites.TestBasicSubpath(f, pod.Name, pod)

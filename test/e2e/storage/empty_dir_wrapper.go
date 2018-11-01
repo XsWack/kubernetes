@@ -210,7 +210,7 @@ func createGitServer(f *framework.Framework) (gitURL string, gitRepo string, cle
 	gitServerPodName := "git-server-" + string(uuid.NewUUID())
 	containerPort := 8000
 
-	labels := map[string]string{"Name": gitServerPodName}
+	labels := map[string]string{"name": gitServerPodName}
 
 	gitServerPod := &v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -374,11 +374,11 @@ func testNoWrappedVolumeRace(f *framework.Framework, volumes []v1.Volume, volume
 		Spec: v1.ReplicationControllerSpec{
 			Replicas: &podCount,
 			Selector: map[string]string{
-				"Name": rcName,
+				"name": rcName,
 			},
 			Template: &v1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
-					Labels: map[string]string{"Name": rcName},
+					Labels: map[string]string{"name": rcName},
 				},
 				Spec: v1.PodSpec{
 					Containers: []v1.Container{

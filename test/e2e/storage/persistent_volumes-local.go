@@ -147,7 +147,7 @@ const (
 	volumeConfigName = "local-volume-config"
 	// provisioner image used for e2e tests
 	provisionerImageName = "quay.io/external_storage/local-volume-provisioner:v2.1.0"
-	// provisioner daemonSetName Name
+	// provisioner daemonSetName name
 	daemonSetName = "local-volume-provisioner"
 	// provisioner default mount point folder
 	provisionerDefaultMountRoot = "/mnt/local-storage"
@@ -768,7 +768,7 @@ func checkPodEvents(config *localTestConfig, podName string, ep *eventPatterns) 
 	var events *v1.EventList
 	selector := fields.Set{
 		"involvedObject.kind":      "Pod",
-		"involvedObject.Name":      podName,
+		"involvedObject.name":      podName,
 		"involvedObject.namespace": config.ns,
 		"reason":                   ep.reason,
 	}.AsSelector().String()
@@ -1662,7 +1662,7 @@ func createProvisionerDaemonset(config *localTestConfig) {
 									Name: "MY_NODE_NAME",
 									ValueFrom: &v1.EnvVarSource{
 										FieldRef: &v1.ObjectFieldSelector{
-											FieldPath: "spec.NodeName",
+											FieldPath: "spec.nodeName",
 										},
 									},
 								},

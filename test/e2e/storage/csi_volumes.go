@@ -113,7 +113,7 @@ var _ = utils.SIGDescribe("CSI Volumes", func() {
 		config = framework.VolumeTestConfig{
 			Namespace: ns.Name,
 			Prefix:    "csi",
-			// TODO(#70259): this needs to be parameterized so only hostpath sets node Name
+			// TODO(#70259): this needs to be parameterized so only hostpath sets node name
 			ClientNodeName:    node.Name,
 			ServerNodeName:    node.Name,
 			WaitForCompletion: true,
@@ -464,7 +464,7 @@ func (h *hostpathCSIDriver) createStorageClassTest() testsuites.StorageClassTest
 		// The hostpath driver only works when everything runs on a single node.
 		NodeName: h.config.ServerNodeName,
 
-		// Provisioner and storage class Name must match what's used in
+		// Provisioner and storage class name must match what's used in
 		// csi-storageclass.yaml, plus the test-specific suffix.
 		Provisioner:      "csi-hostpath-" + h.f.UniqueName,
 		StorageClassName: "csi-hostpath-sc-" + h.f.UniqueName,
