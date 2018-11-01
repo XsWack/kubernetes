@@ -97,19 +97,12 @@ var _ = utils.SIGDescribe("CSI Snapshots", func() {
 
 		It("should create snapshot", func() {
 			storageClassTest := driver.createStorageClassTest()
-			storageClass := newStorageClass(storageClassTest, ns.GetName(), "")
-			By("creating a StorageClass " + storageClass.Name)
-			storageClass, err := cs.StorageV1().StorageClasses().Create(storageClass)
-			Expect(err).NotTo(HaveOccurred())
-			defer func() {
-				framework.Logf("deleting storage storageClass %s", storageClass.Name)
-				framework.ExpectNoError(cs.StorageV1().StorageClasses().Delete(storageClass.Name, nil))
-			}()
+			claim := newClaim(storageClassTest, ns.GetName(), "", nil)
+			scName := storageClassTest.StorageClassName
+			claim.Spec.StorageClassName = &scName
 
 			By("creating a claim")
-			claim := newClaim(storageClassTest, ns.GetName(), "", nil)
-			claim.Spec.StorageClassName = &storageClass.ObjectMeta.Name
-			claim, err = cs.CoreV1().PersistentVolumeClaims(claim.Namespace).Create(claim)
+			claim, err := cs.CoreV1().PersistentVolumeClaims(claim.Namespace).Create(claim)
 			Expect(err).NotTo(HaveOccurred())
 			defer func() {
 				framework.Logf("deleting claim %q/%q", claim.Namespace, claim.Name)

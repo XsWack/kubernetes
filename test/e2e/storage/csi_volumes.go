@@ -175,19 +175,11 @@ var _ = utils.SIGDescribe("CSI Volumes", func() {
 			// Initialize dataSource
 			//######################################################
 			storageClassTest := driver.createStorageClassTest()
-			initStorageClass := newStorageClass(storageClassTest, ns.GetName(), "restoresc")
-			By("[Initialize dataSource]creating a StorageClass " + initStorageClass.Name)
-			initStorageClass, err := cs.StorageV1().StorageClasses().Create(initStorageClass)
-			Expect(err).NotTo(HaveOccurred())
-			defer func() {
-				framework.Logf("deleting storage initStorageClass %s", initStorageClass.Name)
-				framework.ExpectNoError(cs.StorageV1().StorageClasses().Delete(initStorageClass.Name, nil))
-			}()
 
 			By("[Initialize dataSource]creating a initClaim")
 			initClaim := newClaim(storageClassTest, ns.GetName(), "", nil)
-			initClaim.Spec.StorageClassName = &initStorageClass.ObjectMeta.Name
-			initClaim, err = cs.CoreV1().PersistentVolumeClaims(initClaim.Namespace).Create(initClaim)
+			initClaim.Spec.StorageClassName = &storageClassTest.StorageClassName
+			initClaim, err := cs.CoreV1().PersistentVolumeClaims(initClaim.Namespace).Create(initClaim)
 			Expect(err).NotTo(HaveOccurred())
 			defer func() {
 				framework.Logf("deleting initClaim %q/%q", initClaim.Namespace, initClaim.Name)
@@ -249,8 +241,14 @@ var _ = utils.SIGDescribe("CSI Volumes", func() {
 			// Test provision volume from snapshot data source
 			//######################################################
 			claim := newClaim(storageClassTest, ns.GetName(), "", dataSourceRef)
-			class := newStorageClass(storageClassTest, ns.GetName(), "")
-			claim.Spec.StorageClassName = &class.ObjectMeta.Name
+			var class *storagev1.StorageClass
+			if storageClassTest.StorageClassName == "" {
+				class = newStorageClass(storageClassTest, ns.GetName(), "")
+				claim.Spec.StorageClassName = &class.ObjectMeta.Name
+			} else {
+				scName := storageClassTest.StorageClassName
+				claim.Spec.StorageClassName = &scName
+			}
 			testsuites.TestDynamicProvisioning(storageClassTest, cs, claim, class)
 		})
 	})
