@@ -65,7 +65,7 @@ roleRef:
   apiGroup: rbac.authorization.k8s.io
 
 ---
-# Snapshotter must be able to work with endpoints in current namespace
+# Snapshotter must be able to work with config map in current namespace
 # if (and only if) leadership election is enabled
 kind: Role
 apiVersion: rbac.authorization.k8s.io/v1
@@ -75,8 +75,8 @@ metadata:
   name: external-snapshotter-cfg
 rules:
 - apiGroups: [""]
-  resources: ["endpoints"]
-  verbs: ["get", "watch", "list", "delete", "update", "create"]
+  resources: ["configmaps"]
+  verbs: ["get", "update", "create"]
 
 ---
 kind: RoleBinding
@@ -86,10 +86,10 @@ metadata:
   # replace with non-default namespace name
   namespace: default
 subjects:
-- kind: ServiceAccount
-  name: csi-snapshotter
-  # replace with non-default namespace name
-  namespace: default
+  - kind: ServiceAccount
+    name: csi-snapshotter
+    # replace with non-default namespace name
+    namespace: default
 roleRef:
   kind: Role
   name: external-snapshotter-cfg

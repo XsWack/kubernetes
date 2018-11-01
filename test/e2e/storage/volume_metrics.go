@@ -58,7 +58,7 @@ var _ = utils.SIGDescribe("[Serial] Volume metrics", func() {
 			ClaimSize: "2Gi",
 		}
 
-		pvc = newClaim(test, ns, "default")
+		pvc = newClaim(test, ns, "default", nil)
 		var err error
 		metricsGrabber, err = metrics.NewMetricsGrabber(c, nil, true, false, true, false, false)
 

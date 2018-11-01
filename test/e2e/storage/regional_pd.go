@@ -142,7 +142,7 @@ func testVolumeProvisioning(c clientset.Interface, ns string) {
 
 	for _, test := range tests {
 		class := newStorageClass(test, ns, "" /* suffix */)
-		claim := newClaim(test, ns, "" /* suffix */)
+		claim := newClaim(test, ns, "" /* suffix */, nil)
 		claim.Spec.StorageClassName = &class.Name
 		testsuites.TestDynamicProvisioning(test, c, claim, class)
 	}
@@ -311,7 +311,7 @@ func testRegionalDelayedBinding(c clientset.Interface, ns string) {
 
 	suffix := "delayed-regional"
 	class := newStorageClass(test, ns, suffix)
-	claim := newClaim(test, ns, suffix)
+	claim := newClaim(test, ns, suffix, nil)
 	claim.Spec.StorageClassName = &class.Name
 	pv, node := testBindingWaitForFirstConsumer(c, claim, class)
 	if node == nil {
@@ -340,7 +340,7 @@ func testRegionalAllowedTopologies(c clientset.Interface, ns string) {
 	class := newStorageClass(test, ns, suffix)
 	zones := getTwoRandomZones(c)
 	addAllowedTopologiesToStorageClass(c, class, zones)
-	claim := newClaim(test, ns, suffix)
+	claim := newClaim(test, ns, suffix, nil)
 	claim.Spec.StorageClassName = &class.Name
 	pv := testsuites.TestDynamicProvisioning(test, c, claim, class)
 	checkZonesFromLabelAndAffinity(pv, sets.NewString(zones...), true)
@@ -362,7 +362,7 @@ func testRegionalAllowedTopologiesWithDelayedBinding(c clientset.Interface, ns s
 	class := newStorageClass(test, ns, suffix)
 	topoZones := getTwoRandomZones(c)
 	addAllowedTopologiesToStorageClass(c, class, topoZones)
-	claim := newClaim(test, ns, suffix)
+	claim := newClaim(test, ns, suffix, nil)
 	claim.Spec.StorageClassName = &class.Name
 	pv, node := testBindingWaitForFirstConsumer(c, claim, class)
 	if node == nil {

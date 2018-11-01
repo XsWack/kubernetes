@@ -25,6 +25,7 @@ import (
 	storagev1 "k8s.io/api/storage/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/dynamic"
 	clientset "k8s.io/client-go/kubernetes"
 	csiv1alpha1 "k8s.io/csi-api/pkg/apis/csi/v1alpha1"
 	csiclient "k8s.io/csi-api/pkg/client/clientset/versioned"
@@ -81,12 +82,14 @@ var _ = utils.SIGDescribe("CSI Volumes", func() {
 		cs     clientset.Interface
 		ns     *v1.Namespace
 		config framework.VolumeTestConfig
+		dynamicClient dynamic.Interface
 	)
 
 	BeforeEach(func() {
 		ctx, c := context.WithCancel(context.Background())
 		cancel = c
 		cs = f.ClientSet
+		dynamicClient = f.DynamicClient
 		ns = f.Namespace
 		config = framework.VolumeTestConfig{
 			Namespace: ns.Name,
@@ -142,6 +145,100 @@ var _ = utils.SIGDescribe("CSI Volumes", func() {
 			testsuites.RunTestSuite(f, config, driver, csiTestSuites, csiTunePattern)
 		})
 	}
+
+	Context("VolumeSnapshotDataSource test using HostPath driver[Feature:VolumeSnapshotDataSource]", func() {
+		var (
+			driver csiTestDriver
+		)
+		BeforeEach(func() {
+			driver = initCSIHostpath(f, config)
+			driver.createCSIDriver()
+		})
+		AfterEach(func() {
+			driver.cleanupCSIDriver()
+		})
+		It("should provision storage from snapshot data source", func() {
+			//######################################################
+			// Initialize dataSource
+			//######################################################
+			storageClassTest := driver.createStorageClassTest()
+
+			By("[Initialize dataSource]creating a initClaim")
+			initClaim := newClaim(storageClassTest, ns.GetName(), "", nil)
+			initClaim.Spec.StorageClassName = &storageClassTest.StorageClassName
+			initClaim, err := cs.CoreV1().PersistentVolumeClaims(initClaim.Namespace).Create(initClaim)
+			Expect(err).NotTo(HaveOccurred())
+			defer func() {
+				framework.Logf("deleting initClaim %q/%q", initClaim.Namespace, initClaim.Name)
+				// typically this initClaim has already been deleted
+				err = cs.CoreV1().PersistentVolumeClaims(initClaim.Namespace).Delete(initClaim.Name, nil)
+				if err != nil && !errors.IsNotFound(err) {
+					framework.Failf("Error deleting initClaim %q. Error: %v", initClaim.Name, err)
+				}
+			}()
+			err = framework.WaitForPersistentVolumeClaimPhase(v1.ClaimBound, cs, initClaim.Namespace, initClaim.Name, framework.Poll, framework.ClaimProvisionTimeout)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("[Initialize dataSource]checking the initClaim")
+			// Get new copy of the initClaim
+			initClaim, err = cs.CoreV1().PersistentVolumeClaims(initClaim.Namespace).Get(initClaim.Name, metav1.GetOptions{})
+			Expect(err).NotTo(HaveOccurred())
+
+			// write 'hello word' to the /mnt/test (= the volume).
+			By("[Initialize dataSource]write data to volume")
+			command := "echo 'hello world' > /mnt/test/initialData"
+			testsuites.RunInPodWithVolume(cs, initClaim.Namespace, initClaim.Name, storageClassTest.NodeName, command)
+			snapshotClassTest := driver.createSnapshotClassTest()
+			snapshotClass := newSnapshotClass(snapshotClassTest, ns.GetName(), "scc")
+
+			By("[Initialize dataSource]creating a SnapshotClass")
+			snapshotClass, err = dynamicClient.Resource(snapshotClassGVR).Create(snapshotClass, metav1.CreateOptions{})
+			Expect(err).NotTo(HaveOccurred())
+			defer func() {
+				framework.Logf("deleting SnapshotClass %s", snapshotClass.GetName())
+				framework.ExpectNoError(dynamicClient.Resource(snapshotClassGVR).Delete(snapshotClass.GetName(), nil))
+			}()
+
+			By("[Initialize dataSource]creating a snapshot")
+			snapshot := newSnapshot(initClaim, ns.GetName(), snapshotClass.GetName())
+			snapshot, err = dynamicClient.Resource(snapshotGVR).Namespace(ns.GetName()).Create(snapshot, metav1.CreateOptions{})
+			Expect(err).NotTo(HaveOccurred())
+			defer func() {
+				framework.Logf("deleting snapshot %q/%q", snapshot.GetNamespace(), snapshot.GetName())
+				// typically this snapshot has already been deleted
+				err = dynamicClient.Resource(snapshotGVR).Namespace(ns.GetName()).Delete(snapshot.GetName(), nil)
+				if err != nil && !errors.IsNotFound(err) {
+					framework.Failf("Error deleting snapshot %q. Error: %v", initClaim.Name, err)
+				}
+			}()
+			WaitForSnapshotReady(dynamicClient, snapshot.GetNamespace(), snapshot.GetName(), framework.Poll, framework.SnapshotCreateTimeout)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("[Initialize dataSource]checking the snapshot")
+			// Get new copy of the snapshot
+			snapshot, err = dynamicClient.Resource(snapshotGVR).Namespace(snapshot.GetNamespace()).Get(snapshot.GetName(), metav1.GetOptions{})
+			Expect(err).NotTo(HaveOccurred())
+			group := "snapshot.storage.k8s.io"
+			dataSourceRef := &v1.TypedLocalObjectReference{
+				APIGroup: &group,
+				Kind:     "VolumeSnapshot",
+				Name:     snapshot.GetName(),
+			}
+			//######################################################
+			// Test provision volume from snapshot data source
+			//######################################################
+			claim := newClaim(storageClassTest, ns.GetName(), "", dataSourceRef)
+			var class *storagev1.StorageClass
+			if storageClassTest.StorageClassName == "" {
+				class = newStorageClass(storageClassTest, ns.GetName(), "")
+				claim.Spec.StorageClassName = &class.ObjectMeta.Name
+			} else {
+				scName := storageClassTest.StorageClassName
+				claim.Spec.StorageClassName = &scName
+			}
+			testsuites.TestDynamicProvisioning(storageClassTest, cs, claim, class)
+		})
+	})
 
 	// The CSIDriverRegistry feature gate is needed for this test in Kubernetes 1.12.
 	Context("CSI attach test using HostPath driver [Feature:CSISkipAttach]", func() {
@@ -292,7 +389,7 @@ func startPausePod(cs clientset.Interface, t testsuites.StorageClassTest, ns str
 	class := newStorageClass(t, ns, "")
 	class, err := cs.StorageV1().StorageClasses().Create(class)
 	framework.ExpectNoError(err, "Failed to create class : %v", err)
-	claim := newClaim(t, ns, "")
+	claim := newClaim(t, ns, "", nil)
 	claim.Spec.StorageClassName = &class.Name
 	claim, err = cs.CoreV1().PersistentVolumeClaims(ns).Create(claim)
 	framework.ExpectNoError(err, "Failed to create claim: %v", err)
