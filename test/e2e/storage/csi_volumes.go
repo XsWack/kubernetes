@@ -28,6 +28,7 @@ import (
 	apiextensionsclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/dynamic"
 	clientset "k8s.io/client-go/kubernetes"
 	csiv1alpha1 "k8s.io/csi-api/pkg/apis/csi/v1alpha1"
 	csiclient "k8s.io/csi-api/pkg/client/clientset/versioned"
@@ -47,6 +48,7 @@ type csiTestDriver interface {
 	createCSIDriver()
 	cleanupCSIDriver()
 	createStorageClassTest() testsuites.StorageClassTest
+	createSnapshotClassTest() SnapshotClassTest
 }
 
 var csiTestDrivers = map[string]func(f *framework.Framework, config framework.VolumeTestConfig) csiTestDriver{
@@ -60,13 +62,14 @@ var _ = utils.SIGDescribe("CSI Volumes", func() {
 	f := framework.NewDefaultFramework("csi-volumes")
 
 	var (
-		cancel    context.CancelFunc
-		cs        clientset.Interface
-		crdclient apiextensionsclient.Interface
-		csics     csiclient.Interface
-		ns        *v1.Namespace
-		node      v1.Node
-		config    framework.VolumeTestConfig
+		cancel        context.CancelFunc
+		cs            clientset.Interface
+		crdclient     apiextensionsclient.Interface
+		csics         csiclient.Interface
+		dynamicClient dynamic.Interface
+		ns            *v1.Namespace
+		node          v1.Node
+		config        framework.VolumeTestConfig
 	)
 
 	BeforeEach(func() {
@@ -76,6 +79,7 @@ var _ = utils.SIGDescribe("CSI Volumes", func() {
 		cs = f.ClientSet
 		crdclient = f.APIExtensionsClientSet
 		csics = f.CSIClientSet
+		dynamicClient = f.DynamicClient
 		ns = f.Namespace
 
 		// Debugging of the following tests heavily depends on the log output
@@ -109,7 +113,7 @@ var _ = utils.SIGDescribe("CSI Volumes", func() {
 		config = framework.VolumeTestConfig{
 			Namespace: ns.Name,
 			Prefix:    "csi",
-			// TODO(#70259): this needs to be parameterized so only hostpath sets node name
+			// TODO(#70259): this needs to be parameterized so only hostpath sets node Name
 			ClientNodeName:    node.Name,
 			ServerNodeName:    node.Name,
 			WaitForCompletion: true,
@@ -141,7 +145,7 @@ var _ = utils.SIGDescribe("CSI Volumes", func() {
 
 			It("should provision storage", func() {
 				t := driver.createStorageClassTest()
-				claim := newClaim(t, ns.GetName(), "")
+				claim := newClaim(t, ns.GetName(), "", nil)
 				var class *storagev1.StorageClass
 				if t.StorageClassName == "" {
 					class = newStorageClass(t, ns.GetName(), "")
@@ -154,6 +158,102 @@ var _ = utils.SIGDescribe("CSI Volumes", func() {
 			})
 		})
 	}
+
+	Context("VolumeSnapshotDataSource test using HostPath driver[Feature:VolumeSnapshotDataSource]", func() {
+		var (
+			driver csiTestDriver
+		)
+		BeforeEach(func() {
+			driver = initCSIHostpath(f, config)
+			driver.createCSIDriver()
+		})
+		AfterEach(func() {
+			driver.cleanupCSIDriver()
+		})
+		It("should provision storage from snapshot data source", func() {
+			//######################################################
+			// Initialize dataSource
+			//######################################################
+			storageClassTest := driver.createStorageClassTest()
+			initStorageClass := newStorageClass(storageClassTest, ns.GetName(), "restoresc")
+			By("[Initialize dataSource]creating a StorageClass " + initStorageClass.Name)
+			initStorageClass, err := cs.StorageV1().StorageClasses().Create(initStorageClass)
+			Expect(err).NotTo(HaveOccurred())
+			defer func() {
+				framework.Logf("deleting storage initStorageClass %s", initStorageClass.Name)
+				framework.ExpectNoError(cs.StorageV1().StorageClasses().Delete(initStorageClass.Name, nil))
+			}()
+
+			By("[Initialize dataSource]creating a initClaim")
+			initClaim := newClaim(storageClassTest, ns.GetName(), "", nil)
+			initClaim.Spec.StorageClassName = &initStorageClass.ObjectMeta.Name
+			initClaim, err = cs.CoreV1().PersistentVolumeClaims(initClaim.Namespace).Create(initClaim)
+			Expect(err).NotTo(HaveOccurred())
+			defer func() {
+				framework.Logf("deleting initClaim %q/%q", initClaim.Namespace, initClaim.Name)
+				// typically this initClaim has already been deleted
+				err = cs.CoreV1().PersistentVolumeClaims(initClaim.Namespace).Delete(initClaim.Name, nil)
+				if err != nil && !errors.IsNotFound(err) {
+					framework.Failf("Error deleting initClaim %q. Error: %v", initClaim.Name, err)
+				}
+			}()
+			err = framework.WaitForPersistentVolumeClaimPhase(v1.ClaimBound, cs, initClaim.Namespace, initClaim.Name, framework.Poll, framework.ClaimProvisionTimeout)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("[Initialize dataSource]checking the initClaim")
+			// Get new copy of the initClaim
+			initClaim, err = cs.CoreV1().PersistentVolumeClaims(initClaim.Namespace).Get(initClaim.Name, metav1.GetOptions{})
+			Expect(err).NotTo(HaveOccurred())
+
+			// write 'hello word' to the /mnt/test (= the volume).
+			By("[Initialize dataSource]write data to volume")
+			command := "echo 'hello world' > /mnt/test/initialData"
+			testsuites.RunInPodWithVolume(cs, initClaim.Namespace, initClaim.Name, storageClassTest.NodeName, command)
+			snapshotClassTest := driver.createSnapshotClassTest()
+			snapshotClass := newSnapshotClass(snapshotClassTest, ns.GetName(), "scc")
+
+			By("[Initialize dataSource]creating a SnapshotClass")
+			snapshotClass, err = dynamicClient.Resource(snapshotClassGVR).Create(snapshotClass, metav1.CreateOptions{})
+			Expect(err).NotTo(HaveOccurred())
+			defer func() {
+				framework.Logf("deleting SnapshotClass %s", snapshotClass.GetName())
+				framework.ExpectNoError(dynamicClient.Resource(snapshotClassGVR).Delete(snapshotClass.GetName(), nil))
+			}()
+
+			By("[Initialize dataSource]creating a snapshot")
+			snapshot := newSnapshot(initClaim, ns.GetName(), snapshotClass.GetName())
+			snapshot, err = dynamicClient.Resource(snapshotGVR).Namespace(ns.GetName()).Create(snapshot, metav1.CreateOptions{})
+			Expect(err).NotTo(HaveOccurred())
+			defer func() {
+				framework.Logf("deleting snapshot %q/%q", snapshot.GetNamespace(), snapshot.GetName())
+				// typically this snapshot has already been deleted
+				err = dynamicClient.Resource(snapshotGVR).Namespace(ns.GetName()).Delete(snapshot.GetName(), nil)
+				if err != nil && !errors.IsNotFound(err) {
+					framework.Failf("Error deleting snapshot %q. Error: %v", initClaim.Name, err)
+				}
+			}()
+			WaitForSnapshotReady(dynamicClient, snapshot.GetNamespace(), snapshot.GetName(), framework.Poll, framework.SnapshotCreateTimeout)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("[Initialize dataSource]checking the snapshot")
+			// Get new copy of the snapshot
+			snapshot, err = dynamicClient.Resource(snapshotGVR).Namespace(snapshot.GetNamespace()).Get(snapshot.GetName(), metav1.GetOptions{})
+			Expect(err).NotTo(HaveOccurred())
+			group := "snapshot.storage.k8s.io"
+			dataSourceRef := &v1.TypedLocalObjectReference{
+				APIGroup: &group,
+				Kind:     "VolumeSnapshot",
+				Name:     snapshot.GetName(),
+			}
+			//######################################################
+			// Test provision volume from snapshot data source
+			//######################################################
+			claim := newClaim(storageClassTest, ns.GetName(), "", dataSourceRef)
+			class := newStorageClass(storageClassTest, ns.GetName(), "")
+			claim.Spec.StorageClassName = &class.ObjectMeta.Name
+			testsuites.TestDynamicProvisioning(storageClassTest, cs, claim, class)
+		})
+	})
 
 	// The CSIDriverRegistry feature gate is needed for this test in Kubernetes 1.12.
 	Context("CSI attach test using HostPath driver [Feature:CSISkipAttach]", func() {
@@ -286,7 +386,7 @@ func startPausePod(cs clientset.Interface, t testsuites.StorageClassTest, ns str
 	class := newStorageClass(t, ns, "")
 	class, err := cs.StorageV1().StorageClasses().Create(class)
 	framework.ExpectNoError(err, "Failed to create class : %v", err)
-	claim := newClaim(t, ns, "")
+	claim := newClaim(t, ns, "", nil)
 	claim.Spec.StorageClassName = &class.Name
 	claim, err = cs.CoreV1().PersistentVolumeClaims(ns).Create(claim)
 	framework.ExpectNoError(err, "Failed to create claim: %v", err)
@@ -344,6 +444,16 @@ func initCSIHostpath(f *framework.Framework, config framework.VolumeTestConfig) 
 	}
 }
 
+func (h *hostpathCSIDriver) createSnapshotClassTest() SnapshotClassTest {
+	return SnapshotClassTest{
+		Name:        "csi-hostpath",
+		Snapshotter: "csi-hostpath-" + h.f.UniqueName,
+		Parameters:  map[string]string{},
+		// The hostpath driver only works when everything runs on a single node.
+		NodeName: h.config.ServerNodeName,
+	}
+}
+
 func (h *hostpathCSIDriver) createStorageClassTest() testsuites.StorageClassTest {
 	return testsuites.StorageClassTest{
 		Name:         "csi-hostpath",
@@ -354,7 +464,7 @@ func (h *hostpathCSIDriver) createStorageClassTest() testsuites.StorageClassTest
 		// The hostpath driver only works when everything runs on a single node.
 		NodeName: h.config.ServerNodeName,
 
-		// Provisioner and storage class name must match what's used in
+		// Provisioner and storage class Name must match what's used in
 		// csi-storageclass.yaml, plus the test-specific suffix.
 		Provisioner:      "csi-hostpath-" + h.f.UniqueName,
 		StorageClassName: "csi-hostpath-sc-" + h.f.UniqueName,
@@ -370,6 +480,7 @@ func (h *hostpathCSIDriver) createCSIDriver() {
 		NewDriverName:            "csi-hostpath-" + h.f.UniqueName,
 		DriverContainerName:      "hostpath",
 		ProvisionerContainerName: "csi-provisioner",
+		SnapshotterContainerName: "csi-snapshotter",
 		NodeName:                 h.config.ServerNodeName,
 	}
 	cleanup, err := h.f.CreateFromManifests(func(item interface{}) error {
@@ -378,8 +489,10 @@ func (h *hostpathCSIDriver) createCSIDriver() {
 		"test/e2e/testing-manifests/storage-csi/driver-registrar/rbac.yaml",
 		"test/e2e/testing-manifests/storage-csi/external-attacher/rbac.yaml",
 		"test/e2e/testing-manifests/storage-csi/external-provisioner/rbac.yaml",
+		"test/e2e/testing-manifests/storage-csi/external-snapshotter/rbac.yaml",
 		"test/e2e/testing-manifests/storage-csi/hostpath/hostpath/csi-hostpath-attacher.yaml",
 		"test/e2e/testing-manifests/storage-csi/hostpath/hostpath/csi-hostpath-provisioner.yaml",
+		"test/e2e/testing-manifests/storage-csi/hostpath/hostpath/csi-hostpath-snapshotter.yaml",
 		"test/e2e/testing-manifests/storage-csi/hostpath/hostpath/csi-hostpathplugin.yaml",
 		"test/e2e/testing-manifests/storage-csi/hostpath/hostpath/e2e-test-rbac.yaml",
 		"test/e2e/testing-manifests/storage-csi/hostpath/usage/csi-storageclass.yaml",
@@ -417,6 +530,11 @@ func initCSIgcePD(f *framework.Framework, config framework.VolumeTestConfig) csi
 		f:      f,
 		config: config,
 	}
+}
+
+// TODO: Just return empty SnapshotClassTest now. When we add e2e test for gcePDCSIDriver, we should fill the field.
+func (g *gcePDCSIDriver) createSnapshotClassTest() SnapshotClassTest {
+	return SnapshotClassTest{}
 }
 
 func (g *gcePDCSIDriver) createStorageClassTest() testsuites.StorageClassTest {
@@ -491,4 +609,8 @@ func (g *gcePDCSIDriverExternal) createCSIDriver() {
 }
 
 func (g *gcePDCSIDriverExternal) cleanupCSIDriver() {
+}
+
+func (g *gcePDCSIDriverExternal) createSnapshotClassTest() SnapshotClassTest {
+	return SnapshotClassTest{}
 }

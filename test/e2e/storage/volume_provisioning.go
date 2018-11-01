@@ -52,7 +52,7 @@ import (
 )
 
 const (
-	// Plugin name of the external provisioner
+	// Plugin Name of the external provisioner
 	externalPluginName = "example.com/nfs"
 )
 
@@ -244,7 +244,7 @@ var _ = utils.SIGDescribe("Dynamic Provisioning", func() {
 	})
 
 	Describe("DynamicProvisioner [Slow]", func() {
-		It("should provision storage with different parameters", func() {
+		It("should provision storage with different Parameters", func() {
 			cloudZone := getRandomCloudZone(c)
 
 			// This test checks that dynamic provisioning can provision a volume
@@ -407,7 +407,7 @@ var _ = utils.SIGDescribe("Dynamic Provisioning", func() {
 				By("Testing " + test.Name)
 				suffix := fmt.Sprintf("%d", i)
 				class := newStorageClass(test, ns, suffix)
-				claim := newClaim(test, ns, suffix)
+				claim := newClaim(test, ns, suffix, nil)
 				claim.Spec.StorageClassName = &class.Name
 				testsuites.TestDynamicProvisioning(test, c, claim, class)
 			}
@@ -421,7 +421,7 @@ var _ = utils.SIGDescribe("Dynamic Provisioning", func() {
 				Expect(err).NotTo(HaveOccurred())
 				defer deleteStorageClass(c, class.Name)
 
-				claim := newClaim(*betaTest, ns, "beta")
+				claim := newClaim(*betaTest, ns, "beta", nil)
 				claim.Spec.StorageClassName = &(class.Name)
 				testsuites.TestDynamicProvisioning(*betaTest, c, claim, nil)
 			}
@@ -446,7 +446,7 @@ var _ = utils.SIGDescribe("Dynamic Provisioning", func() {
 			class := newStorageClass(test, ns, "reclaimpolicy")
 			retain := v1.PersistentVolumeReclaimRetain
 			class.ReclaimPolicy = &retain
-			claim := newClaim(test, ns, "reclaimpolicy")
+			claim := newClaim(test, ns, "reclaimpolicy", nil)
 			claim.Spec.StorageClassName = &class.Name
 			pv := testsuites.TestDynamicProvisioning(test, c, claim, class)
 
@@ -505,7 +505,7 @@ var _ = utils.SIGDescribe("Dynamic Provisioning", func() {
 			defer deleteStorageClass(c, sc.Name)
 
 			By("Creating a claim and expecting it to timeout")
-			pvc := newClaim(test, ns, suffix)
+			pvc := newClaim(test, ns, suffix, nil)
 			pvc.Spec.StorageClassName = &sc.Name
 			pvc, err = c.CoreV1().PersistentVolumeClaims(ns).Create(pvc)
 			Expect(err).NotTo(HaveOccurred())
@@ -544,7 +544,7 @@ var _ = utils.SIGDescribe("Dynamic Provisioning", func() {
 			// To increase chance of detection, attempt multiple iterations
 			for i := 0; i < raceAttempts; i++ {
 				suffix := fmt.Sprintf("race-%d", i)
-				claim := newClaim(test, ns, suffix)
+				claim := newClaim(test, ns, suffix, nil)
 				claim.Spec.StorageClassName = &class.Name
 				tmpClaim, err := framework.CreatePVC(c, ns, claim)
 				Expect(err).NotTo(HaveOccurred())
@@ -601,7 +601,7 @@ var _ = utils.SIGDescribe("Dynamic Provisioning", func() {
 						APIVersion: "v1",
 						UID:        types.UID("01234567890"),
 						Namespace:  ns,
-						Name:       "dummy-claim-name",
+						Name:       "dummy-claim-Name",
 					},
 				},
 			}
@@ -688,7 +688,7 @@ var _ = utils.SIGDescribe("Dynamic Provisioning", func() {
 				ExpectedSize: "1500Mi",
 			}
 			class := newStorageClass(test, ns, "external")
-			claim := newClaim(test, ns, "external")
+			claim := newClaim(test, ns, "external", nil)
 			claim.Spec.StorageClassName = &(class.Name)
 
 			By("creating a claim with a external provisioning annotation")
@@ -707,7 +707,7 @@ var _ = utils.SIGDescribe("Dynamic Provisioning", func() {
 				ExpectedSize: "2Gi",
 			}
 
-			claim := newClaim(test, ns, "default")
+			claim := newClaim(test, ns, "default", nil)
 			testsuites.TestDynamicProvisioning(test, c, claim, nil)
 		})
 
@@ -726,7 +726,7 @@ var _ = utils.SIGDescribe("Dynamic Provisioning", func() {
 			updateDefaultStorageClass(c, scName, "false")
 
 			By("creating a claim with default storageclass and expecting it to timeout")
-			claim := newClaim(test, ns, "default")
+			claim := newClaim(test, ns, "default", nil)
 			claim, err := c.CoreV1().PersistentVolumeClaims(ns).Create(claim)
 			Expect(err).NotTo(HaveOccurred())
 			defer func() {
@@ -757,7 +757,7 @@ var _ = utils.SIGDescribe("Dynamic Provisioning", func() {
 			updateDefaultStorageClass(c, scName, "")
 
 			By("creating a claim with default storageclass and expecting it to timeout")
-			claim := newClaim(test, ns, "default")
+			claim := newClaim(test, ns, "default", nil)
 			claim, err := c.CoreV1().PersistentVolumeClaims(ns).Create(claim)
 			Expect(err).NotTo(HaveOccurred())
 			defer func() {
@@ -792,7 +792,7 @@ var _ = utils.SIGDescribe("Dynamic Provisioning", func() {
 			class := newStorageClass(test, ns, suffix)
 
 			By("creating a claim object with a suffix for gluster dynamic provisioner")
-			claim := newClaim(test, ns, suffix)
+			claim := newClaim(test, ns, suffix, nil)
 
 			testsuites.TestDynamicProvisioning(test, c, claim, class)
 		})
@@ -819,7 +819,7 @@ var _ = utils.SIGDescribe("Dynamic Provisioning", func() {
 			}()
 
 			By("creating a claim object with a suffix for gluster dynamic provisioner")
-			claim := newClaim(test, ns, suffix)
+			claim := newClaim(test, ns, suffix, nil)
 			claim.Spec.StorageClassName = &class.Name
 			claim, err = c.CoreV1().PersistentVolumeClaims(claim.Namespace).Create(claim)
 			Expect(err).NotTo(HaveOccurred())
@@ -871,7 +871,7 @@ var _ = utils.SIGDescribe("Dynamic Provisioning", func() {
 				By("creating a claim with class with waitForFirstConsumer")
 				suffix := "delayed"
 				class := newStorageClass(test, ns, suffix)
-				claim := newClaim(test, ns, suffix)
+				claim := newClaim(test, ns, suffix, nil)
 				claim.Spec.StorageClassName = &class.Name
 				pv, node := testBindingWaitForFirstConsumer(c, claim, class)
 				if node == nil {
@@ -913,7 +913,7 @@ var _ = utils.SIGDescribe("Dynamic Provisioning", func() {
 				class := newStorageClass(test, ns, suffix)
 				zone := getRandomCloudZone(c)
 				addSingleZoneAllowedTopologyToStorageClass(c, class, zone)
-				claim := newClaim(test, ns, suffix)
+				claim := newClaim(test, ns, suffix, nil)
 				claim.Spec.StorageClassName = &class.Name
 				pv := testsuites.TestDynamicProvisioning(test, c, claim, class)
 				checkZoneFromLabelAndAffinity(pv, zone, true)
@@ -948,7 +948,7 @@ var _ = utils.SIGDescribe("Dynamic Provisioning", func() {
 				class := newStorageClass(test, ns, suffix)
 				topoZone := getRandomCloudZone(c)
 				addSingleZoneAllowedTopologyToStorageClass(c, class, topoZone)
-				claim := newClaim(test, ns, suffix)
+				claim := newClaim(test, ns, suffix, nil)
 				claim.Spec.StorageClassName = &class.Name
 				pv, node := testBindingWaitForFirstConsumer(c, claim, class)
 				if node == nil {
@@ -1020,7 +1020,7 @@ func updateDefaultStorageClass(c clientset.Interface, scName string, defaultStr 
 	verifyDefaultStorageClass(c, scName, expectedDefault)
 }
 
-func getClaim(claimSize string, ns string) *v1.PersistentVolumeClaim {
+func getClaim(claimSize string, ns string, dataSource *v1.TypedLocalObjectReference) *v1.PersistentVolumeClaim {
 	claim := v1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{
 			GenerateName: "pvc-",
@@ -1035,14 +1035,15 @@ func getClaim(claimSize string, ns string) *v1.PersistentVolumeClaim {
 					v1.ResourceName(v1.ResourceStorage): resource.MustParse(claimSize),
 				},
 			},
+			DataSource: dataSource,
 		},
 	}
 
 	return &claim
 }
 
-func newClaim(t testsuites.StorageClassTest, ns, suffix string) *v1.PersistentVolumeClaim {
-	return getClaim(t.ClaimSize, ns)
+func newClaim(t testsuites.StorageClassTest, ns, suffix string, dataSource *v1.TypedLocalObjectReference) *v1.PersistentVolumeClaim {
+	return getClaim(t.ClaimSize, ns, dataSource)
 }
 
 func getDefaultPluginName() string {
@@ -1104,7 +1105,7 @@ func getStorageClass(
 			Kind: "StorageClass",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			// Name must be unique, so let's base it on namespace name
+			// Name must be unique, so let's base it on namespace Name
 			Name: ns + "-" + suffix,
 		},
 		Provisioner:       provisioner,

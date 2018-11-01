@@ -58,7 +58,7 @@ var _ = utils.SIGDescribe("[Serial] Volume metrics", func() {
 			ClaimSize: "2Gi",
 		}
 
-		pvc = newClaim(test, ns, "default")
+		pvc = newClaim(test, ns, "default", nil)
 		var err error
 		metricsGrabber, err = metrics.NewMetricsGrabber(c, nil, true, false, true, false, false)
 
@@ -497,7 +497,7 @@ func getControllerStorageMetrics(ms metrics.ControllerManagerMetrics) map[string
 }
 
 // Finds the sample in the specified metric from `KubeletMetrics` tagged with
-// the specified namespace and pvc name
+// the specified namespace and pvc Name
 func findVolumeStatMetric(metricKeyName string, namespace string, pvcName string, kubeletMetrics metrics.KubeletMetrics) bool {
 	found := false
 	errCount := 0

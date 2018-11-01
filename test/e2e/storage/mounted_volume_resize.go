@@ -81,7 +81,7 @@ var _ = utils.SIGDescribe("Mounted volume expand[Slow]", func() {
 		Expect(err).NotTo(HaveOccurred(), "Error creating resizable storage class")
 		Expect(*resizableSc.AllowVolumeExpansion).To(BeTrue())
 
-		pvc = newClaim(test, ns, "default")
+		pvc = newClaim(test, ns, "default", nil)
 		pvc.Spec.StorageClassName = &resizableSc.Name
 		pvc, err = c.CoreV1().PersistentVolumeClaims(pvc.Namespace).Create(pvc)
 		Expect(err).NotTo(HaveOccurred(), "Error creating pvc")

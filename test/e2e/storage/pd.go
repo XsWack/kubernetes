@@ -511,9 +511,9 @@ func detachPD(nodeName types.NodeName, pdName string) error {
 
 // Returns pod spec suitable for api Create call. Handles gce, gke and aws providers only and
 // escapes if a different provider is supplied.
-// The first container name is hard-coded to "mycontainer". Subsequent containers are named:
+// The first container Name is hard-coded to "mycontainer". Subsequent containers are named:
 // "mycontainer<number> where <number> is 1..numContainers. Note if there is only one container it's
-// name has no number.
+// Name has no number.
 // Container's volumeMounts are hard-coded to "/testpd<number>" where <number> is 1..len(diskNames).
 func testPDPod(diskNames []string, targetNode types.NodeName, readOnly bool, numContainers int) *v1.Pod {
 	// escape if not a supported provider
