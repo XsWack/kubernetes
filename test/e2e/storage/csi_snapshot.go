@@ -56,7 +56,7 @@ type SnapshotClassTest struct {
 	SnapshotContentCheck func(snapshotContent *unstructured.Unstructured) error
 }
 
-var _ = utils.SIGDescribe("CSI Snapshots", func() {
+var _ = utils.SIGDescribe("CSI Snapshots [Feature:CSISnapshots] ", func() {
 	f := framework.NewDefaultFramework("csi-snapshot-plugin")
 
 	var (

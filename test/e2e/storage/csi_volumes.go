@@ -146,7 +146,7 @@ var _ = utils.SIGDescribe("CSI Volumes", func() {
 		})
 	}
 
-	Context("VolumeSnapshotDataSource test using HostPath driver[Feature:VolumeSnapshotDataSource]", func() {
+	Context("VolumeSnapshotDataSource test using HostPath driver [Feature:VolumeSnapshotDataSource]", func() {
 		var (
 			driver csiTestDriver
 		)
@@ -184,9 +184,9 @@ var _ = utils.SIGDescribe("CSI Volumes", func() {
 			initClaim, err = cs.CoreV1().PersistentVolumeClaims(initClaim.Namespace).Get(initClaim.Name, metav1.GetOptions{})
 			Expect(err).NotTo(HaveOccurred())
 
-			// write 'hello word' to the /mnt/test (= the volume).
+			// write namespace to the /mnt/test (= the volume).
 			By("[Initialize dataSource]write data to volume")
-			command := "echo 'hello world' > /mnt/test/initialData"
+			command := fmt.Sprintf("echo '%s' > /mnt/test/initialData", ns.GetName())
 			testsuites.RunInPodWithVolume(cs, initClaim.Namespace, initClaim.Name, storageClassTest.NodeName, command)
 			snapshotClassTest := driver.createSnapshotClassTest()
 			snapshotClass := newSnapshotClass(snapshotClassTest, ns.GetName(), "scc")

@@ -289,7 +289,8 @@ func TestDynamicProvisioning(t StorageClassTest, client clientset.Interface, cla
 
 	if claim.Spec.DataSource != nil {
 		By("checking the created volume whether has the pre-populated data")
-		RunInPodWithVolume(client, claim.Namespace, claim.Name, t.NodeName, "grep 'hello world' /mnt/test/initialData")
+		command := fmt.Sprintf("grep '%s' /mnt/test/initialData", claim.Namespace)
+		RunInPodWithVolume(client, claim.Namespace, claim.Name, t.NodeName, command)
 	}
 
 	By(fmt.Sprintf("deleting claim %q/%q", claim.Namespace, claim.Name))
