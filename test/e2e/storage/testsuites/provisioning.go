@@ -18,20 +18,19 @@ package testsuites
 
 import (
 	"fmt"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/client-go/dynamic"
 	"time"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
-	apierrs "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/api/resource"
-
 	"k8s.io/api/core/v1"
 	storage "k8s.io/api/storage/v1"
+	apierrs "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/client-go/dynamic"
 	clientset "k8s.io/client-go/kubernetes"
 	"k8s.io/kubernetes/test/e2e/framework"
 	"k8s.io/kubernetes/test/e2e/storage/testpatterns"
@@ -214,7 +213,7 @@ func testProvisioning(input *provisioningTestInput) {
 		TestDynamicProvisioning(input.testCase, input.cs, input.pvc, input.sc)
 	})
 
-	It("should provision storage with snapshot data source", func() {
+	It("should provision storage with snapshot data source [Feature:VolumeSnapshotDataSource]", func() {
 		if !input.dInfo.Capabilities[CapDataSource] {
 			framework.Skipf("Driver %q does not support populate data from snapshot - skipping", input.dInfo.Name)
 		}

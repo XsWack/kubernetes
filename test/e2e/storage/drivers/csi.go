@@ -37,11 +37,11 @@ package drivers
 
 import (
 	"fmt"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"math/rand"
 
 	. "github.com/onsi/ginkgo"
 	storagev1 "k8s.io/api/storage/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/kubernetes/test/e2e/framework"
 	"k8s.io/kubernetes/test/e2e/storage/testpatterns"
@@ -72,7 +72,7 @@ func initHostPathCSIDriver(name string, config testsuites.TestConfig, manifests 
 			),
 			Capabilities: map[testsuites.Capability]bool{
 				testsuites.CapPersistence: true,
-				testsuites.CapDataSource: true,
+				testsuites.CapDataSource:  true,
 			},
 
 			Config: config,
