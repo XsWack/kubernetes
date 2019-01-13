@@ -18,6 +18,8 @@ package testsuites
 
 import (
 	"fmt"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/client-go/dynamic"
 	"time"
 
 	. "github.com/onsi/ginkgo"
@@ -89,10 +91,13 @@ func createProvisioningTestInput(driver TestDriver, pattern testpatterns.TestPat
 			ClaimSize:    resource.claimSize,
 			ExpectedSize: resource.claimSize,
 		},
-		cs:    driver.GetDriverInfo().Config.Framework.ClientSet,
-		pvc:   resource.pvc,
-		sc:    resource.sc,
-		dInfo: driver.GetDriverInfo(),
+		cs:       driver.GetDriverInfo().Config.Framework.ClientSet,
+		dc:       driver.GetDriverInfo().Config.Framework.DynamicClient,
+		pvc:      resource.pvc,
+		sc:       resource.sc,
+		vsc:      resource.vsc,
+		snapshot: resource.snapshot,
+		dInfo:    driver.GetDriverInfo(),
 	}
 
 	if driver.GetDriverInfo().Config.ClientNodeName != "" {
@@ -139,6 +144,9 @@ type provisioningTestResource struct {
 	claimSize string
 	sc        *storage.StorageClass
 	pvc       *v1.PersistentVolumeClaim
+	// follow parameter is used to test provision volume from snapshot
+	vsc      *unstructured.Unstructured
+	snapshot *unstructured.Unstructured
 }
 
 var _ TestResource = &provisioningTestResource{}
@@ -157,6 +165,10 @@ func (p *provisioningTestResource) setupResource(driver TestDriver, pattern test
 			p.pvc = getClaim(p.claimSize, driver.GetDriverInfo().Config.Framework.Namespace.Name)
 			p.pvc.Spec.StorageClassName = &p.sc.Name
 			framework.Logf("In creating storage class object and pvc object for driver - sc: %v, pvc: %v", p.sc, p.pvc)
+			if dDriver, ok := driver.(SnapshottableTestDriver); ok {
+				p.vsc = dDriver.GetSnapshotClass()
+				p.snapshot = getSnapshot(p.pvc.Name, driver.GetDriverInfo().Config.Framework.Namespace.Name, p.vsc.GetName())
+			}
 		}
 	default:
 		framework.Failf("Dynamic Provision test doesn't support: %s", pattern.VolType)
@@ -169,8 +181,11 @@ func (p *provisioningTestResource) cleanupResource(driver TestDriver, pattern te
 type provisioningTestInput struct {
 	testCase StorageClassTest
 	cs       clientset.Interface
+	dc       dynamic.Interface
 	pvc      *v1.PersistentVolumeClaim
 	sc       *storage.StorageClass
+	vsc      *unstructured.Unstructured
+	snapshot *unstructured.Unstructured
 	dInfo    *DriverInfo
 }
 
@@ -198,6 +213,15 @@ func testProvisioning(input *provisioningTestInput) {
 		input.pvc.Spec.VolumeMode = &block
 		TestDynamicProvisioning(input.testCase, input.cs, input.pvc, input.sc)
 	})
+
+	It("should provision storage with snapshot data source", func() {
+		if !input.dInfo.Capabilities[CapDataSource] {
+			framework.Skipf("Driver %q does not support populate data from snapshot - skipping", input.dInfo.Name)
+		}
+
+		input.pvc.Spec.DataSource = prepareDataSourceForProvisioning(input.testCase, input.cs, input.dc, input.pvc, input.sc, input.vsc, input.snapshot)
+		TestDynamicProvisioning(input.testCase, input.cs, input.pvc, input.sc)
+	})
 }
 
 // TestDynamicProvisioning tests dynamic provisioning with specified StorageClassTest and storageClass
@@ -206,7 +230,7 @@ func TestDynamicProvisioning(t StorageClassTest, client clientset.Interface, cla
 	if class != nil {
 		By("creating a StorageClass " + class.Name)
 		class, err = client.StorageV1().StorageClasses().Create(class)
-		Expect(err).NotTo(HaveOccurred())
+		Expect(err == nil || apierrs.IsAlreadyExists(err)).To(Equal(true))
 		defer func() {
 			framework.Logf("deleting storage class %s", class.Name)
 			framework.ExpectNoError(client.StorageV1().StorageClasses().Delete(class.Name, nil))
@@ -288,6 +312,13 @@ func TestDynamicProvisioning(t StorageClassTest, client clientset.Interface, cla
 		By("checking the created volume is readable and retains data")
 		runInPodWithVolume(client, claim.Namespace, claim.Name, t.NodeName, "grep 'hello world' /mnt/test/data", t.NodeSelector, t.ExpectUnschedulable)
 	}
+
+	if claim.Spec.DataSource != nil {
+		By("checking the created volume whether has the pre-populated data")
+		command := fmt.Sprintf("grep '%s' /mnt/test/initialData", claim.Namespace)
+		runInPodWithVolume(client, claim.Namespace, claim.Name, t.NodeName, command, t.NodeSelector, t.ExpectUnschedulable)
+	}
+
 	By(fmt.Sprintf("deleting claim %q/%q", claim.Namespace, claim.Name))
 	framework.ExpectNoError(client.CoreV1().PersistentVolumeClaims(claim.Namespace).Delete(claim.Name, nil))
 
@@ -465,4 +496,80 @@ func verifyPVCsPending(client clientset.Interface, pvcs []*v1.PersistentVolumeCl
 		Expect(err).NotTo(HaveOccurred())
 		Expect(claim.Status.Phase).To(Equal(v1.ClaimPending))
 	}
+}
+
+func prepareDataSourceForProvisioning(
+	t StorageClassTest,
+	client clientset.Interface,
+	dynamicClient dynamic.Interface,
+	initClaim *v1.PersistentVolumeClaim,
+	class *storage.StorageClass,
+	snapshotClass *unstructured.Unstructured,
+	snapshot *unstructured.Unstructured,
+) *v1.TypedLocalObjectReference {
+	var err error
+	if class != nil {
+		By("[Initialize dataSource]creating a StorageClass " + class.Name)
+		class, err = client.StorageV1().StorageClasses().Create(class)
+		Expect(err).NotTo(HaveOccurred())
+	}
+
+	By("[Initialize dataSource]creating a initClaim")
+	initClaim, err = client.CoreV1().PersistentVolumeClaims(initClaim.Namespace).Create(initClaim)
+	Expect(err).NotTo(HaveOccurred())
+	defer func() {
+		framework.Logf("deleting initClaim %q/%q", initClaim.Namespace, initClaim.Name)
+		// typically this initClaim has already been deleted
+		err = client.CoreV1().PersistentVolumeClaims(initClaim.Namespace).Delete(initClaim.Name, nil)
+		if err != nil && !apierrs.IsNotFound(err) {
+			framework.Failf("Error deleting initClaim %q. Error: %v", initClaim.Name, err)
+		}
+	}()
+	err = framework.WaitForPersistentVolumeClaimPhase(v1.ClaimBound, client, initClaim.Namespace, initClaim.Name, framework.Poll, framework.ClaimProvisionTimeout)
+	Expect(err).NotTo(HaveOccurred())
+
+	By("[Initialize dataSource]checking the initClaim")
+	// Get new copy of the initClaim
+	initClaim, err = client.CoreV1().PersistentVolumeClaims(initClaim.Namespace).Get(initClaim.Name, metav1.GetOptions{})
+	Expect(err).NotTo(HaveOccurred())
+
+	// write namespace to the /mnt/test (= the volume).
+	By("[Initialize dataSource]write data to volume")
+	command := fmt.Sprintf("echo '%s' > /mnt/test/initialData", initClaim.GetNamespace())
+	runInPodWithVolume(client, initClaim.Namespace, initClaim.Name, t.NodeName, command, t.NodeSelector, t.ExpectUnschedulable)
+
+	By("[Initialize dataSource]creating a SnapshotClass")
+	snapshotClass, err = dynamicClient.Resource(snapshotClassGVR).Create(snapshotClass, metav1.CreateOptions{})
+	Expect(err).NotTo(HaveOccurred())
+	defer func() {
+		framework.Logf("deleting SnapshotClass %s", snapshotClass.GetName())
+		framework.ExpectNoError(dynamicClient.Resource(snapshotClassGVR).Delete(snapshotClass.GetName(), nil))
+	}()
+
+	By("[Initialize dataSource]creating a snapshot")
+	snapshot, err = dynamicClient.Resource(snapshotGVR).Namespace(initClaim.Namespace).Create(snapshot, metav1.CreateOptions{})
+	Expect(err).NotTo(HaveOccurred())
+	defer func() {
+		framework.Logf("deleting snapshot %q/%q", snapshot.GetNamespace(), snapshot.GetName())
+		// typically this snapshot has already been deleted
+		err = dynamicClient.Resource(snapshotGVR).Namespace(initClaim.Namespace).Delete(snapshot.GetName(), nil)
+		if err != nil && !apierrs.IsNotFound(err) {
+			framework.Failf("Error deleting snapshot %q. Error: %v", initClaim.Name, err)
+		}
+	}()
+	WaitForSnapshotReady(dynamicClient, snapshot.GetNamespace(), snapshot.GetName(), framework.Poll, framework.SnapshotCreateTimeout)
+	Expect(err).NotTo(HaveOccurred())
+
+	By("[Initialize dataSource]checking the snapshot")
+	// Get new copy of the snapshot
+	snapshot, err = dynamicClient.Resource(snapshotGVR).Namespace(snapshot.GetNamespace()).Get(snapshot.GetName(), metav1.GetOptions{})
+	Expect(err).NotTo(HaveOccurred())
+	group := "snapshot.storage.k8s.io"
+	dataSourceRef := &v1.TypedLocalObjectReference{
+		APIGroup: &group,
+		Kind:     "VolumeSnapshot",
+		Name:     snapshot.GetName(),
+	}
+
+	return dataSourceRef
 }
