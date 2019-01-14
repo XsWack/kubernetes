@@ -84,17 +84,17 @@ var testCases = map[string]ImagePullTestCase{
 	//"single10g50test":  {Name: "单节点/10G/50并发", ImageSize: "5G", Concurrent: 50, IsSingleNode: true,},
 
 	"multi100m100test": {Name: "多节点/100M/100并发", ImageSize: "100M", Concurrent: 100, IsSingleNode: false,},
-	"multi100m200test": {Name: "多节点/100M/200并", ImageSize: "100M", Concurrent: 200, IsSingleNode: false,},
-	"multi100m500test": {Name: "多节点/100M/500并发", ImageSize: "100M", Concurrent: 500, IsSingleNode: false,},
-	"multi1g100test":   {Name: "多节点/1G/100并发", ImageSize: "1G", Concurrent: 100, IsSingleNode: false,},
-	"multi1g200test":   {Name: "多节点/1G/200并发", ImageSize: "1G", Concurrent: 200, IsSingleNode: false,},
-	"multi1g500test":   {Name: "多节点/1G/500并发", ImageSize: "1G", Concurrent: 500, IsSingleNode: false,},
-	"multi5g100test":   {Name: "多节点/5G/100并发", ImageSize: "5G", Concurrent: 100, IsSingleNode: false,},
-	"multi5g200test":   {Name: "多节点/5G/200并发", ImageSize: "5G", Concurrent: 200, IsSingleNode: false,},
-	"multi5g500test":   {Name: "多节点/5G/500并发", ImageSize: "5G", Concurrent: 500, IsSingleNode: false,},
-	"multi10g100test":  {Name: "多节点/10G/100并发", ImageSize: "5G", Concurrent: 100, IsSingleNode: false,},
-	"multi10g200test":  {Name: "多节点/10G/200并", ImageSize: "5G", Concurrent: 200, IsSingleNode: false,},
-	"multi10g500test":  {Name: "多节点/10G/500并发", ImageSize: "5G", Concurrent: 500, IsSingleNode: false,},
+	//"multi100m200test": {Name: "多节点/100M/200并", ImageSize: "100M", Concurrent: 200, IsSingleNode: false,},
+	//"multi100m500test": {Name: "多节点/100M/500并发", ImageSize: "100M", Concurrent: 500, IsSingleNode: false,},
+	//"multi1g100test":   {Name: "多节点/1G/100并发", ImageSize: "1G", Concurrent: 100, IsSingleNode: false,},
+	//"multi1g200test":   {Name: "多节点/1G/200并发", ImageSize: "1G", Concurrent: 200, IsSingleNode: false,},
+	//"multi1g500test":   {Name: "多节点/1G/500并发", ImageSize: "1G", Concurrent: 500, IsSingleNode: false,},
+	//"multi5g100test":   {Name: "多节点/5G/100并发", ImageSize: "5G", Concurrent: 100, IsSingleNode: false,},
+	//"multi5g200test":   {Name: "多节点/5G/200并发", ImageSize: "5G", Concurrent: 200, IsSingleNode: false,},
+	//"multi5g500test":   {Name: "多节点/5G/500并发", ImageSize: "5G", Concurrent: 500, IsSingleNode: false,},
+	//"multi10g100test":  {Name: "多节点/10G/100并发", ImageSize: "5G", Concurrent: 100, IsSingleNode: false,},
+	//"multi10g200test":  {Name: "多节点/10G/200并", ImageSize: "5G", Concurrent: 200, IsSingleNode: false,},
+	//"multi10g500test":  {Name: "多节点/10G/500并发", ImageSize: "5G", Concurrent: 500, IsSingleNode: false,},
 }
 
 func main() {
