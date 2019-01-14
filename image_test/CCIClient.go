@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/url"
 	"os"
 
 	"io/ioutil"
@@ -16,6 +17,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/kubernetes/pkg/api/ref"
 )
 
@@ -96,11 +99,15 @@ func (conn *CCIConn) getDeployment(deployment *apps.Deployment) (*apps.Deploymen
 
 func (conn *CCIConn) listPod(options metav1.ListOptions, namespace string) (*v1.PodList, error) {
 	url := fmt.Sprintf("%s/api/v1/namespaces/%s/pods", CCIServerAddr, namespace)
-	byteOfOptions, err := json.Marshal(options)
-	if err != nil {
-		return nil, fmt.Errorf("marshal request body failed: %v", err)
+	eventAPIVersion := schema.GroupVersion{
+		Group:   "",
+		Version: "v1",
 	}
-	request, err := CommonRequest(http.MethodGet, url, nil, bytes.NewReader(byteOfOptions))
+
+	queryParam := SpecificallyVersionedParams(&options, scheme.ParameterCodec, eventAPIVersion)
+
+	finalUrl := fmt.Sprintf("%s?%s", url, queryParam)
+	request, err := CommonRequest(http.MethodGet, finalUrl, nil, nil)
 	if err != nil {
 		return nil, fmt.Errorf("build request error: %v", err)
 	}
@@ -137,17 +144,23 @@ func (conn *CCIConn) listPod(options metav1.ListOptions, namespace string) (*v1.
 //
 //}
 
-func (conn *CCIConn) SearchEvent(scheme *runtime.Scheme, objOrRef runtime.Object, namespace string) (*v1.EventList, error) {
+func (conn *CCIConn) SearchEvent(runTimeScheme *runtime.Scheme, objOrRef runtime.Object, namespace string) (*v1.EventList, error) {
 	url := fmt.Sprintf("%s/api/v1/namespaces/%s/events", CCIServerAddr, namespace)
-	selector, err := makeFieldSelector(scheme, objOrRef)
+	selector, err := makeFieldSelector(runTimeScheme, objOrRef)
 	if err != nil {
 		return nil, err
 	}
-	byteOfSelector, err := json.Marshal(selector)
-	if err != nil {
-		return nil, fmt.Errorf("marshal request body failed: %v", err)
+
+	opts := metav1.ListOptions{FieldSelector: selector.String()}
+	eventAPIVersion := schema.GroupVersion{
+		Group:   "",
+		Version: "v1",
 	}
-	request, err := CommonRequest(http.MethodGet, url, nil, bytes.NewReader(byteOfSelector))
+
+	queryParam := SpecificallyVersionedParams(&opts, scheme.ParameterCodec, eventAPIVersion)
+
+	finalUrl := fmt.Sprintf("%s?%s", url, queryParam)
+	request, err := CommonRequest(http.MethodGet, finalUrl, nil, nil)
 	if err != nil {
 		return nil, fmt.Errorf("build request error: %v", err)
 	}
@@ -252,4 +265,25 @@ func getXAuthToken() string {
 		panic("token is empty")
 	}
 	return token
+}
+
+func SpecificallyVersionedParams(obj runtime.Object, codec runtime.ParameterCodec, version schema.GroupVersion) string {
+	params, err := codec.EncodeParameters(obj, version)
+	if err != nil {
+		return ""
+	}
+
+	params = make(url.Values)
+	for k, v := range params {
+		params[k] = append(params[k], v...)
+	}
+
+	query := url.Values{}
+	for key, values := range params {
+		for _, value := range values {
+			query.Add(key, value)
+		}
+	}
+
+	return query.Encode()
 }
