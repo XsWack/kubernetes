@@ -52,12 +52,12 @@ func (conn *CCIConn) createDeployment(deployment *apps.Deployment) (*apps.Deploy
 	if err != nil {
 		return nil, fmt.Errorf("getPod PerfromRequest error: %v", err)
 	}
-	var newDp *apps.Deployment
-	err = json.Unmarshal(body, newDp)
+	var newDp apps.Deployment
+	err = json.Unmarshal(body, &newDp)
 	if err != nil {
 		return nil, fmt.Errorf("unmarshal failed: %v", err)
 	}
-	return newDp, nil
+	return &newDp, nil
 }
 
 func (conn *CCIConn) deleteDeployment(deployment *apps.Deployment) error {
@@ -86,12 +86,12 @@ func (conn *CCIConn) getDeployment(deployment *apps.Deployment) (*apps.Deploymen
 	if err != nil {
 		return nil, fmt.Errorf("getDeployment PerfromRequest error: %v", err)
 	}
-	var newDp *apps.Deployment
-	err = json.Unmarshal(body, newDp)
+	var newDp apps.Deployment
+	err = json.Unmarshal(body, &newDp)
 	if err != nil {
 		return nil, fmt.Errorf("unmarshal failed: %v", err)
 	}
-	return newDp, nil
+	return &newDp, nil
 }
 
 func (conn *CCIConn) listPod(options metav1.ListOptions, namespace string) (*v1.PodList, error) {
@@ -110,13 +110,13 @@ func (conn *CCIConn) listPod(options metav1.ListOptions, namespace string) (*v1.
 		return nil, fmt.Errorf("listPod PerfromRequest error: %v", err)
 	}
 
-	var podList *v1.PodList
-	err = json.Unmarshal(body, podList)
+	var podList v1.PodList
+	err = json.Unmarshal(body, &podList)
 	if err != nil {
 		return nil, fmt.Errorf("listPod unmarshal failed: %v", err)
 	}
 
-	return podList, nil
+	return &podList, nil
 }
 
 //func (conn *CCIConn) getPod(namespace, name string) error {
@@ -156,13 +156,13 @@ func (conn *CCIConn) SearchEvent(scheme *runtime.Scheme, objOrRef runtime.Object
 		return nil, fmt.Errorf("SearchEvent PerfromRequest error: %v", err)
 	}
 
-	var eventList *v1.EventList
-	err = json.Unmarshal(body, eventList)
+	var eventList v1.EventList
+	err = json.Unmarshal(body, &eventList)
 	if err != nil {
 		return nil, fmt.Errorf("SearchEvent unmarshal failed: %v", err)
 	}
 
-	return eventList, nil
+	return &eventList, nil
 }
 
 func makeFieldSelector(scheme *runtime.Scheme, objOrRef runtime.Object) (fields.Selector, error) {
