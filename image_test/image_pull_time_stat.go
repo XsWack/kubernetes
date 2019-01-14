@@ -233,9 +233,11 @@ func statSinglePodImagePullDuration(ns string, pod *v1.Pod) (*ImagePullTimeInfo,
 	for _, el := range events.Items {
 		if el.Reason == PULLING {
 			startPullingTime = el.FirstTimestamp
+			fmt.Println(fmt.Sprintf("startPullingTime event %v", el.Name))
 		}
 
 		if el.Reason == PULLED {
+			fmt.Println(fmt.Sprintf("endPulledTime event %v", el.Name))
 			endPulledTime = el.FirstTimestamp
 		}
 	}
