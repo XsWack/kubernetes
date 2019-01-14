@@ -17,8 +17,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/kubernetes/pkg/api/ref"
 )
 
@@ -98,15 +96,14 @@ func (conn *CCIConn) getDeployment(deployment *apps.Deployment) (*apps.Deploymen
 }
 
 func (conn *CCIConn) listPod(options metav1.ListOptions, namespace string) (*v1.PodList, error) {
-	url := fmt.Sprintf("%s/api/v1/namespaces/%s/pods", CCIServerAddr, namespace)
-	eventAPIVersion := schema.GroupVersion{
-		Group:   "",
-		Version: "v1",
+	path := fmt.Sprintf("%s/api/v1/namespaces/%s/pods", CCIServerAddr, namespace)
+
+	finalUrl := path
+	if len(options.LabelSelector) > 0 {
+		tmpUrl := fmt.Sprintf("%s?labelSelector=%s", path, options.LabelSelector)
+		finalUrl = url.QueryEscape(tmpUrl)
 	}
 
-	queryParam := SpecificallyVersionedParams(&options, scheme.ParameterCodec, eventAPIVersion)
-
-	finalUrl := fmt.Sprintf("%s?%s", url, queryParam)
 	request, err := CommonRequest(http.MethodGet, finalUrl, nil, nil)
 	if err != nil {
 		return nil, fmt.Errorf("build request error: %v", err)
@@ -145,21 +142,13 @@ func (conn *CCIConn) listPod(options metav1.ListOptions, namespace string) (*v1.
 //}
 
 func (conn *CCIConn) SearchEvent(runTimeScheme *runtime.Scheme, objOrRef runtime.Object, namespace string) (*v1.EventList, error) {
-	url := fmt.Sprintf("%s/api/v1/namespaces/%s/events", CCIServerAddr, namespace)
+	path := fmt.Sprintf("%s/api/v1/namespaces/%s/events", CCIServerAddr, namespace)
 	selector, err := makeFieldSelector(runTimeScheme, objOrRef)
 	if err != nil {
 		return nil, err
 	}
-
-	opts := metav1.ListOptions{FieldSelector: selector.String()}
-	eventAPIVersion := schema.GroupVersion{
-		Group:   "",
-		Version: "v1",
-	}
-
-	queryParam := SpecificallyVersionedParams(&opts, scheme.ParameterCodec, eventAPIVersion)
-
-	finalUrl := fmt.Sprintf("%s?%s", url, queryParam)
+	tmpUrl := fmt.Sprintf("%s?fieldSelector=%s", path, selector.String())
+	finalUrl := url.QueryEscape(tmpUrl)
 	request, err := CommonRequest(http.MethodGet, finalUrl, nil, nil)
 	if err != nil {
 		return nil, fmt.Errorf("build request error: %v", err)
@@ -265,25 +254,4 @@ func getXAuthToken() string {
 		panic("token is empty")
 	}
 	return token
-}
-
-func SpecificallyVersionedParams(obj runtime.Object, codec runtime.ParameterCodec, version schema.GroupVersion) string {
-	params, err := codec.EncodeParameters(obj, version)
-	if err != nil {
-		return ""
-	}
-
-	params = make(url.Values)
-	for k, v := range params {
-		params[k] = append(params[k], v...)
-	}
-
-	query := url.Values{}
-	for key, values := range params {
-		for _, value := range values {
-			query.Add(key, value)
-		}
-	}
-
-	return query.Encode()
 }
