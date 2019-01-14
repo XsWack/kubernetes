@@ -65,7 +65,7 @@ var _ TestSuite = &snapshottableTestSuite{}
 
 // InitSnapshottableTestSuite returns snapshottableTestSuite that implements TestSuite interface
 func InitSnapshottableTestSuite() TestSuite {
-	return &provisioningTestSuite{
+	return &snapshottableTestSuite{
 		tsInfo: TestSuiteInfo{
 			name: "snapshottable",
 			testPatterns: []testpatterns.TestPattern{
@@ -94,7 +94,6 @@ func createSnapshottableTestInput(driver TestDriver, pattern testpatterns.TestPa
 		pvc:      resource.pvc,
 		sc:       resource.sc,
 		vsc:      resource.vsc,
-		snapshot: resource.snapshot,
 		dInfo:    driver.GetDriverInfo(),
 	}
 
@@ -143,8 +142,7 @@ type snapshottableTestResource struct {
 	sc  *storage.StorageClass
 	pvc *v1.PersistentVolumeClaim
 	// volume snapshot class
-	vsc      *unstructured.Unstructured
-	snapshot *unstructured.Unstructured
+	vsc *unstructured.Unstructured
 }
 
 var _ TestResource = &snapshottableTestResource{}
@@ -166,7 +164,6 @@ func (s *snapshottableTestResource) setupResource(driver TestDriver, pattern tes
 
 			if dDriver, ok := driver.(SnapshottableTestDriver); ok {
 				s.vsc = dDriver.GetSnapshotClass()
-				s.snapshot = getSnapshot(s.pvc.Name, driver.GetDriverInfo().Config.Framework.Namespace.Name, s.vsc.GetName())
 			}
 		}
 
@@ -185,14 +182,13 @@ type snapshottableTestInput struct {
 	pvc      *v1.PersistentVolumeClaim
 	sc       *storage.StorageClass
 	// volume snapshot class
-	vsc      *unstructured.Unstructured
-	snapshot *unstructured.Unstructured
-	dInfo    *DriverInfo
+	vsc   *unstructured.Unstructured
+	dInfo *DriverInfo
 }
 
 func testSnapshot(input *snapshottableTestInput) {
-	It("should provision storage with defaults", func() {
-		TestCreateSnapshot(input.testCase, input.cs, input.dc, input.pvc, input.sc, input.vsc, input.snapshot)
+	It("should create snapshot with defaults", func() {
+		TestCreateSnapshot(input.testCase, input.cs, input.dc, input.pvc, input.sc, input.vsc)
 	})
 }
 
@@ -204,7 +200,6 @@ func TestCreateSnapshot(
 	claim *v1.PersistentVolumeClaim,
 	class *storage.StorageClass,
 	snapshotClass *unstructured.Unstructured,
-	snapshot *unstructured.Unstructured,
 ) *unstructured.Unstructured {
 	var err error
 	if class != nil {
@@ -249,6 +244,8 @@ func TestCreateSnapshot(
 	}()
 
 	By("creating a snapshot")
+	snapshot := getSnapshot(claim.Name, claim.Namespace, snapshotClass.GetName())
+
 	snapshot, err = dynamicClient.Resource(snapshotGVR).Namespace(snapshot.GetNamespace()).Create(snapshot, metav1.CreateOptions{})
 	Expect(err).NotTo(HaveOccurred())
 	defer func() {
@@ -298,6 +295,7 @@ func WaitForSnapshotReady(c dynamic.Interface, ns string, snapshotName string, P
 	framework.Logf("Waiting up to %v for VolumeSnapshot %s to become ready", timeout, snapshotName)
 	for start := time.Now(); time.Since(start) < timeout; time.Sleep(Poll) {
 		snapshot, err := c.Resource(snapshotGVR).Namespace(ns).Get(snapshotName, metav1.GetOptions{})
+		framework.Logf("get snapshot: %v", snapshot)
 		if err != nil {
 			framework.Logf("Failed to get claim %q, retrying in %v. Error: %v", snapshotName, Poll, err)
 			continue
@@ -308,7 +306,10 @@ func WaitForSnapshotReady(c dynamic.Interface, ns string, snapshotName string, P
 				continue
 			}
 			value := status.(map[string]interface{})
-			if value["ready"] == true {
+			if value["readyToUse"] == true {
+				framework.Logf("VolumeSnapshot %s found and is ready", snapshotName, time.Since(start))
+				return nil
+			} else if value["ready"] == true {
 				framework.Logf("VolumeSnapshot %s found and is ready", snapshotName, time.Since(start))
 				return nil
 			} else {

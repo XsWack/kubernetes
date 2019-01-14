@@ -45,7 +45,7 @@ var (
 	DynamicPV TestVolType = "DynamicPV"
 )
 
-// TestVolType represents a volume type to be tested in a TestSuite
+// TestSnapshotType represents a snapshot type to be tested in a TestSuite
 type TestSnapshotType string
 
 var (
