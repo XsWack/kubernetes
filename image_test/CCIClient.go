@@ -100,8 +100,7 @@ func (conn *CCIConn) listPod(options metav1.ListOptions, namespace string) (*v1.
 
 	finalUrl := path
 	if len(options.LabelSelector) > 0 {
-		tmpUrl := fmt.Sprintf("%s?labelSelector=%s", path, options.LabelSelector)
-		finalUrl = url.QueryEscape(tmpUrl)
+		finalUrl = fmt.Sprintf("%s?labelSelector=%s", path, url.QueryEscape(options.LabelSelector))
 	}
 
 	request, err := CommonRequest(http.MethodGet, finalUrl, nil, nil)
@@ -147,8 +146,7 @@ func (conn *CCIConn) SearchEvent(runTimeScheme *runtime.Scheme, objOrRef runtime
 	if err != nil {
 		return nil, err
 	}
-	tmpUrl := fmt.Sprintf("%s?fieldSelector=%s", path, selector.String())
-	finalUrl := url.QueryEscape(tmpUrl)
+	finalUrl := fmt.Sprintf("%s?fieldSelector=%s", path, url.QueryEscape(selector.String()))
 	request, err := CommonRequest(http.MethodGet, finalUrl, nil, nil)
 	if err != nil {
 		return nil, fmt.Errorf("build request error: %v", err)
