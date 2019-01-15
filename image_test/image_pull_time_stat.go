@@ -48,11 +48,10 @@ type ImagePullTimeInfo struct {
 }
 
 var imagesMaps = map[string][]string{
-	"100M": {"100.125.0.198:20202/image-pull-test/mynginx1:test"},
-/*	"100M": {"100.125.5.235:20202/phoenix/nginx:https", "100.125.0.198:20202/image-pull-test/myimage_25g:latest", "100.125.0.198:20202/image-pull-test/myimage_20g:latest", "100.125.0.198:20202/image-pull-test/myimage_10g:latest"},
+	"100M": {"100.125.0.198:20202/image-pull-test/myimage_20g:latest", "100.125.0.198:20202/image-pull-test/myimage_10g:latest"},
 	"1G":   {"100.125.0.198:20202/image-pull-test/myimage_10_102g:latest", "100.125.0.198:20202/image-pull-test/myimage_51g:latest"},
 	"5G":   {"100.125.0.198:20202/image-pull-test/myimage_10_512g:latest", "100.125.0.198:20202/image-pull-test/myimage_256g:latest"},
-	"10G":  {"100.125.0.198:20202/image-pull-test/myimage_10_1024g:latest", "100.125.0.198:20202/image-pull-test/myimage_512g:latest"},*/
+	"10G":  {"100.125.0.198:20202/image-pull-test/myimage_10_1024g:latest", "100.125.0.198:20202/image-pull-test/myimage_512g:latest"},
 }
 
 var imagePullSecret string
@@ -83,9 +82,9 @@ var testCases = map[string]ImagePullTestCase{
 	//"single10g20test":  {Name: "单节点/10G/20并发", ImageSize: "5G", Concurrent: 20, IsSingleNode: true,},
 	//"single10g50test":  {Name: "单节点/10G/50并发", ImageSize: "5G", Concurrent: 50, IsSingleNode: true,},
 
-	"multi100m100test": {Name: "多节点/100M/100并发", ImageSize: "100M", Concurrent: 8, IsSingleNode: false,},
-	//"multi100m200test": {Name: "多节点/100M/200并", ImageSize: "100M", Concurrent: 200, IsSingleNode: false,},
-	//"multi100m500test": {Name: "多节点/100M/500并发", ImageSize: "100M", Concurrent: 500, IsSingleNode: false,},
+	"multi100m100test": {Name: "多节点/100M/100并发", ImageSize: "100M", Concurrent: 100, IsSingleNode: false,},
+	"multi100m200test": {Name: "多节点/100M/200并", ImageSize: "100M", Concurrent: 200, IsSingleNode: false,},
+	"multi100m500test": {Name: "多节点/100M/500并发", ImageSize: "100M", Concurrent: 500, IsSingleNode: false,},
 	//"multi1g100test":   {Name: "多节点/1G/100并发", ImageSize: "1G", Concurrent: 100, IsSingleNode: false,},
 	//"multi1g200test":   {Name: "多节点/1G/200并发", ImageSize: "1G", Concurrent: 200, IsSingleNode: false,},
 	//"multi1g500test":   {Name: "多节点/1G/500并发", ImageSize: "1G", Concurrent: 500, IsSingleNode: false,},
