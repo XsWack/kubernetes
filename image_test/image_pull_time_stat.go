@@ -9,7 +9,6 @@ import (
 
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes/scheme"
-	"math"
 	"os"
 	"sort"
 	"time"
@@ -48,7 +47,7 @@ type ImagePullTimeInfo struct {
 }
 
 var imagesMaps = map[string][]string{
-	"100M": {"100.125.0.198:20202/image-pull-test/myimage_20g:latest", "100.125.0.198:20202/image-pull-test/myimage_10g:latest"},
+	//"100M": {"100.125.0.198:20202/image-pull-test/myimage_20g:latest", "100.125.0.198:20202/image-pull-test/myimage_10g:latest"},
 	"1G":   {"100.125.0.198:20202/image-pull-test/myimage_10_102g:latest", "100.125.0.198:20202/image-pull-test/myimage_51g:latest"},
 	"5G":   {"100.125.0.198:20202/image-pull-test/myimage_10_512g:latest", "100.125.0.198:20202/image-pull-test/myimage_256g:latest"},
 	"10G":  {"100.125.0.198:20202/image-pull-test/myimage_10_1024g:latest", "100.125.0.198:20202/image-pull-test/myimage_512g:latest"},
@@ -82,18 +81,18 @@ var testCases = map[string]ImagePullTestCase{
 	//"single10g20test":  {Name: "单节点/10G/20并发", ImageSize: "5G", Concurrent: 20, IsSingleNode: true,},
 	//"single10g50test":  {Name: "单节点/10G/50并发", ImageSize: "5G", Concurrent: 50, IsSingleNode: true,},
 
-	"multi100m100test": {Name: "多节点/100M/100并发", ImageSize: "100M", Concurrent: 100, IsSingleNode: false,},
-	"multi100m200test": {Name: "多节点/100M/200并", ImageSize: "100M", Concurrent: 200, IsSingleNode: false,},
-	"multi100m500test": {Name: "多节点/100M/500并发", ImageSize: "100M", Concurrent: 500, IsSingleNode: false,},
-	//"multi1g100test":   {Name: "多节点/1G/100并发", ImageSize: "1G", Concurrent: 100, IsSingleNode: false,},
-	//"multi1g200test":   {Name: "多节点/1G/200并发", ImageSize: "1G", Concurrent: 200, IsSingleNode: false,},
-	//"multi1g500test":   {Name: "多节点/1G/500并发", ImageSize: "1G", Concurrent: 500, IsSingleNode: false,},
-	//"multi5g100test":   {Name: "多节点/5G/100并发", ImageSize: "5G", Concurrent: 100, IsSingleNode: false,},
-	//"multi5g200test":   {Name: "多节点/5G/200并发", ImageSize: "5G", Concurrent: 200, IsSingleNode: false,},
-	//"multi5g500test":   {Name: "多节点/5G/500并发", ImageSize: "5G", Concurrent: 500, IsSingleNode: false,},
-	//"multi10g100test":  {Name: "多节点/10G/100并发", ImageSize: "5G", Concurrent: 100, IsSingleNode: false,},
-	//"multi10g200test":  {Name: "多节点/10G/200并", ImageSize: "5G", Concurrent: 200, IsSingleNode: false,},
-	//"multi10g500test":  {Name: "多节点/10G/500并发", ImageSize: "5G", Concurrent: 500, IsSingleNode: false,},
+	//"multi100m100test": {Name: "多节点/100M/100并发", ImageSize: "100M", Concurrent: 100, IsSingleNode: false,},
+	//"multi100m200test": {Name: "多节点/100M/200并", ImageSize: "100M", Concurrent: 200, IsSingleNode: false,},
+	//"multi100m500test": {Name: "多节点/100M/500并发", ImageSize: "100M", Concurrent: 500, IsSingleNode: false,},
+	"multi1g100test":   {Name: "多节点/1G/100并发", ImageSize: "1G", Concurrent: 100, IsSingleNode: false,},
+	"multi1g200test":   {Name: "多节点/1G/200并发", ImageSize: "1G", Concurrent: 200, IsSingleNode: false,},
+	"multi1g500test":   {Name: "多节点/1G/500并发", ImageSize: "1G", Concurrent: 500, IsSingleNode: false,},
+	"multi5g100test":   {Name: "多节点/5G/100并发", ImageSize: "5G", Concurrent: 100, IsSingleNode: false,},
+	"multi5g200test":   {Name: "多节点/5G/200并发", ImageSize: "5G", Concurrent: 200, IsSingleNode: false,},
+	"multi5g500test":   {Name: "多节点/5G/500并发", ImageSize: "5G", Concurrent: 500, IsSingleNode: false,},
+	"multi10g100test":  {Name: "多节点/10G/100并发", ImageSize: "10G", Concurrent: 100, IsSingleNode: false,},
+	"multi10g200test":  {Name: "多节点/10G/200并", ImageSize: "10G", Concurrent: 200, IsSingleNode: false,},
+	"multi10g500test":  {Name: "多节点/10G/500并发", ImageSize: "10G", Concurrent: 500, IsSingleNode: false,},
 }
 
 func main() {
@@ -150,15 +149,14 @@ func TestImagePullCases(ns, nodeName string) {
 // labels 创建job和pod的label，用来筛选哪些是测试job和pod
 func TestPullImageFunc(generateName, ns, imageSize, nodeName string, concurrent int, nodeSelector, podLabels map[string]string) {
 	deploymentArray := []*apps.Deployment{}
-	for k, v := range imagesMaps {
+	for k, imageArray := range imagesMaps {
 		if k == imageSize {
-			imageNum := len(v)
-			fmt.Println(fmt.Sprintf("使用镜像 %v", v))
-			perDpParallelism := math.Ceil(float64(concurrent / imageNum))
-			for i, imageName := range v {
+			totalDp := concurrent / 50
+			for i := 0; i < totalDp; i++ {
 				labVal := podLabels["testpullimagecase"]
 				podLabels[fmt.Sprintf("testpullimagecase%ddp", i)] = fmt.Sprintf("%s%ddp", labVal, i)
-				dp := NewDeployment(generateName, int32(perDpParallelism), nodeSelector, podLabels, ns, nodeName, imageName)
+				fmt.Println(fmt.Sprintf("使用镜像: %s", imageArray[i%2]))
+				dp := NewDeployment(generateName, 50, nodeSelector, podLabels, ns, nodeName, imageArray[i%2])
 				apiDp, err := conn.createDeployment(dp)
 				delete(podLabels, fmt.Sprintf("testpullimagecase%ddp", i))
 				if err != nil {
@@ -306,7 +304,7 @@ func DeleteDeployment(d *apps.Deployment) error {
 
 func waitDeploymentReady(d *apps.Deployment) error {
 	var deployment *apps.Deployment
-	err := wait.PollImmediate(10*time.Second, 15*time.Minute, func() (bool, error) {
+	err := wait.PollImmediate(10*time.Second, 40*time.Minute, func() (bool, error) {
 		var err error
 		deployment, err = conn.getDeployment(d)
 		if err != nil {
