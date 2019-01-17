@@ -165,7 +165,7 @@ func TestPullImageFunc(generateName, ns, imageSize, nodeName string, concurrent 
 				apiDp, err := conn.createDeployment(dp)
 				delete(podLabels, fmt.Sprintf("testpullimagecase%ddp", i))
 				if err != nil {
-					fmt.Println(fmt.Sprintf("create dp %s failed: %v", apiDp.Name, err))
+					fmt.Println(fmt.Sprintf("create dp %s failed: %v", dp.Name, err))
 					continue
 				}
 				deploymentArray = append(deploymentArray, apiDp)
