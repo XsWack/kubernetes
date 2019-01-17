@@ -160,8 +160,8 @@ func TestPullImageFunc(generateName, ns, imageSize, nodeName string, concurrent 
 			for i := 0; i < totalDp; i++ {
 				labVal := podLabels["testpullimagecase"]
 				podLabels[fmt.Sprintf("testpullimagecase%ddp", i)] = fmt.Sprintf("%s%ddp", labVal, i)
-				fmt.Println(fmt.Sprintf("使用镜像: %s", imageArray[i%2]))
-				dp := NewDeployment(generateName, 50, nodeSelector, podLabels, ns, nodeName, imageArray[i%2])
+				fmt.Println(fmt.Sprintf("使用镜像: %s", imageArray[0]))
+				dp := NewDeployment(generateName, 50, nodeSelector, podLabels, ns, nodeName, imageArray[0])
 				apiDp, err := conn.createDeployment(dp)
 				delete(podLabels, fmt.Sprintf("testpullimagecase%ddp", i))
 				if err != nil {
