@@ -51,7 +51,8 @@ var imagesMaps = map[string][]string{
 	//"1G":   {"100.125.0.198:20202/image-pull-test/myimage_10_102g:latest", "100.125.0.198:20202/image-pull-test/myimage_51g:latest"},
 	//"5G":   {"100.125.0.198:20202/image-pull-test/myimage_10_512g:latest", "100.125.0.198:20202/image-pull-test/myimage_256g:latest"},
 	//"10G":  {"100.125.0.198:20202/image-pull-test/myimage_10_1024g:latest", "100.125.0.198:20202/image-pull-test/myimage_512g:latest"},
-	"100M": {"100.125.0.198:20202/image-pull-test/myimage_5g:latest"},
+	//"100M": {"100.125.0.198:20202/image-pull-test/myimage_5g:latest"},
+	"100M": {"100.125.0.198:20202/image-pull-test/myimage_33g:latest"},
 	"1G":   {"100.125.0.198:20202/image-pull-test/myimage_50g:latest"},
 	"2G":   {"100.125.0.198:20202/image-pull-test/myimage_100g:latest"},
 	"5G":   {"100.125.0.198:20202/image-pull-test/myimage_250g:latest"},
@@ -89,11 +90,11 @@ var testCases = map[string]ImagePullTestCase{
 	"multi100m200test": {Name: "多节点/100M/200并", ImageSize: "100M", Concurrent: 200, IsSingleNode: false,},
 	//"multi100m500test": {Name: "多节点/100M/500并发", ImageSize: "100M", Concurrent: 500, IsSingleNode: false,},
 	//"multi1g100test":   {Name: "多节点/1G/100并发", ImageSize: "1G", Concurrent: 100, IsSingleNode: false,},
-	"multi1g200test":   {Name: "多节点/1G/200并发", ImageSize: "1G", Concurrent: 200, IsSingleNode: false,},
+	//"multi1g200test":   {Name: "多节点/1G/200并发", ImageSize: "1G", Concurrent: 200, IsSingleNode: false,},
 	//"multi1g500test":   {Name: "多节点/1G/500并发", ImageSize: "1G", Concurrent: 500, IsSingleNode: false,},
 	//"multi5g100test":   {Name: "多节点/5G/100并发", ImageSize: "5G", Concurrent: 100, IsSingleNode: false,},
-	"multi2g200test":   {Name: "多节点/2G/200并发", ImageSize: "2G", Concurrent: 200, IsSingleNode: false,},
-	"multi5g200test":   {Name: "多节点/5G/200并发", ImageSize: "5G", Concurrent: 200, IsSingleNode: false,},
+	//"multi2g200test":   {Name: "多节点/2G/200并发", ImageSize: "2G", Concurrent: 200, IsSingleNode: false,},
+	//"multi5g200test":   {Name: "多节点/5G/200并发", ImageSize: "5G", Concurrent: 200, IsSingleNode: false,},
 	//"multi5g500test":   {Name: "多节点/5G/500并发", ImageSize: "5G", Concurrent: 500, IsSingleNode: false,},
 	//"multi10g100test":  {Name: "多节点/10G/100并发", ImageSize: "10G", Concurrent: 100, IsSingleNode: false,},
 	//"multi10g200test":  {Name: "多节点/10G/200并", ImageSize: "10G", Concurrent: 200, IsSingleNode: false,},
@@ -181,6 +182,8 @@ func TestPullImageFunc(generateName, ns, imageSize, nodeName string, concurrent 
 			continue
 		}
 	}
+
+	time.Sleep(100 * time.Second)
 
 	fmt.Println(fmt.Sprintf("query pod labels for %v: %v", generateName, podLabels))
 	selector := labels.Set(podLabels).AsSelector()

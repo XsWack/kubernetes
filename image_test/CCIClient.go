@@ -122,24 +122,6 @@ func (conn *CCIConn) listPod(options metav1.ListOptions, namespace string) (*v1.
 	return &podList, nil
 }
 
-//func (conn *CCIConn) getPod(namespace, name string) error {
-//	url := fmt.Sprintf("%s/api/v1/namespaces/%s/pods/%s", CCIServerAddr, namespace, name)
-//
-//	request, err := CommonRequest(http.MethodGet, url, nil, nil)
-//	if err != nil {
-//		fmt.Println(fmt.Sprintf("build request error: %v", err))
-//		return err
-//	}
-//
-//	code, body, header, err := PerfromRequest(conn.client, request)
-//	if err != nil {
-//		fmt.Println(fmt.Sprintf("getPod PerfromRequest error: %v", err))
-//		return err
-//	}
-//	return nil
-//
-//}
-
 func (conn *CCIConn) SearchEvent(runTimeScheme *runtime.Scheme, objOrRef runtime.Object, namespace string) (*v1.EventList, error) {
 	path := fmt.Sprintf("%s/api/v1/namespaces/%s/events", CCIServerAddr, namespace)
 	selector, err := makeFieldSelector(runTimeScheme, objOrRef)
