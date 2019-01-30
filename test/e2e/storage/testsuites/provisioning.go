@@ -231,7 +231,7 @@ func TestDynamicProvisioning(t StorageClassTest, client clientset.Interface, cla
 	var err error
 	if class != nil {
 		By("creating a StorageClass " + class.Name)
-		class, err = client.StorageV1().StorageClasses().Create(class)
+		_, err = client.StorageV1().StorageClasses().Create(class)
 		Expect(err == nil || apierrs.IsAlreadyExists(err)).To(Equal(true))
 		defer func() {
 			framework.Logf("deleting storage class %s", class.Name)
@@ -566,7 +566,7 @@ func prepareDataSourceForProvisioning(
 		framework.Logf("deleting snapshot %q/%q", snapshot.GetNamespace(), snapshot.GetName())
 		err = dynamicClient.Resource(snapshotGVR).Namespace(initClaim.Namespace).Delete(snapshot.GetName(), nil)
 		if err != nil && !apierrs.IsNotFound(err) {
-			framework.Failf("Error deleting snapshot %q. Error: %v", initClaim.Name, err)
+			framework.Failf("Error deleting snapshot %q. Error: %v", snapshot.GetName(), err)
 		}
 	}
 
