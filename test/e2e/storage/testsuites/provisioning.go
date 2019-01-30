@@ -219,10 +219,11 @@ func testProvisioning(input *provisioningTestInput) {
 
 		input.testCase.SkipWriteReadCheck = true
 		dataSource, cleanupFunc := prepareDataSourceForProvisioning(input.testCase, input.cs, input.dc, input.pvc, input.sc, input.vsc)
+		defer cleanupFunc()
+		framework.Logf("volume snapshot dataSource %v", dataSource)
+
 		input.pvc.Spec.DataSource = dataSource
 		TestDynamicProvisioning(input.testCase, input.cs, input.pvc, input.sc)
-		// clean created prepare resources.
-		cleanupFunc()
 	})
 }
 
@@ -554,6 +555,12 @@ func prepareDataSourceForProvisioning(
 	}
 
 	cleanupFunc := func() {
+		framework.Logf("deleting snapshot %q/%q", snapshot.GetNamespace(), snapshot.GetName())
+		err = dynamicClient.Resource(snapshotGVR).Namespace(initClaim.Namespace).Delete(snapshot.GetName(), nil)
+		if err != nil && !apierrs.IsNotFound(err) {
+			framework.Failf("Error deleting snapshot %q. Error: %v", snapshot.GetName(), err)
+		}
+
 		framework.Logf("deleting initClaim %q/%q", initClaim.Namespace, initClaim.Name)
 		err = client.CoreV1().PersistentVolumeClaims(initClaim.Namespace).Delete(initClaim.Name, nil)
 		if err != nil && !apierrs.IsNotFound(err) {
@@ -562,12 +569,6 @@ func prepareDataSourceForProvisioning(
 
 		framework.Logf("deleting SnapshotClass %s", snapshotClass.GetName())
 		framework.ExpectNoError(dynamicClient.Resource(snapshotClassGVR).Delete(snapshotClass.GetName(), nil))
-
-		framework.Logf("deleting snapshot %q/%q", snapshot.GetNamespace(), snapshot.GetName())
-		err = dynamicClient.Resource(snapshotGVR).Namespace(initClaim.Namespace).Delete(snapshot.GetName(), nil)
-		if err != nil && !apierrs.IsNotFound(err) {
-			framework.Failf("Error deleting snapshot %q. Error: %v", snapshot.GetName(), err)
-		}
 	}
 
 	return dataSourceRef, cleanupFunc
