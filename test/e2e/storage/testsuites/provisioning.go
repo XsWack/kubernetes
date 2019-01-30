@@ -274,20 +274,20 @@ func TestDynamicProvisioning(t StorageClassTest, client clientset.Interface, cla
 
 	// Check PV properties
 	By("checking the PV")
-	//expectedAccessModes := []v1.PersistentVolumeAccessMode{v1.ReadWriteOnce}
-	//Expect(pv.Spec.AccessModes).To(Equal(expectedAccessModes))
-	//Expect(pv.Spec.ClaimRef.Name).To(Equal(claim.ObjectMeta.Name))
-	//Expect(pv.Spec.ClaimRef.Namespace).To(Equal(claim.ObjectMeta.Namespace))
-	//if class == nil {
-	//	Expect(pv.Spec.PersistentVolumeReclaimPolicy).To(Equal(v1.PersistentVolumeReclaimDelete))
-	//} else {
-	//	Expect(pv.Spec.PersistentVolumeReclaimPolicy).To(Equal(*class.ReclaimPolicy))
-	//	Expect(pv.Spec.MountOptions).To(Equal(class.MountOptions))
-	//}
-	//if t.VolumeMode != nil {
-	//	Expect(pv.Spec.VolumeMode).NotTo(BeNil())
-	//	Expect(*pv.Spec.VolumeMode).To(Equal(*t.VolumeMode))
-	//}
+	expectedAccessModes := []v1.PersistentVolumeAccessMode{v1.ReadWriteOnce}
+	Expect(pv.Spec.AccessModes).To(Equal(expectedAccessModes))
+	Expect(pv.Spec.ClaimRef.Name).To(Equal(claim.ObjectMeta.Name))
+	Expect(pv.Spec.ClaimRef.Namespace).To(Equal(claim.ObjectMeta.Namespace))
+	if class == nil {
+		Expect(pv.Spec.PersistentVolumeReclaimPolicy).To(Equal(v1.PersistentVolumeReclaimDelete))
+	} else {
+		Expect(pv.Spec.PersistentVolumeReclaimPolicy).To(Equal(*class.ReclaimPolicy))
+		Expect(pv.Spec.MountOptions).To(Equal(class.MountOptions))
+	}
+	if t.VolumeMode != nil {
+		Expect(pv.Spec.VolumeMode).NotTo(BeNil())
+		Expect(*pv.Spec.VolumeMode).To(Equal(*t.VolumeMode))
+	}
 
 	// Run the checker
 	if t.PvCheck != nil {
@@ -515,19 +515,19 @@ func prepareDataSourceForProvisioning(
 	var err error
 	if class != nil {
 		By("[Initialize dataSource]creating a StorageClass " + class.Name)
-		class, err = client.StorageV1().StorageClasses().Create(class)
+		_, err = client.StorageV1().StorageClasses().Create(class)
 		Expect(err).NotTo(HaveOccurred())
 	}
 
 	By("[Initialize dataSource]creating a initClaim")
-	initClaim, err = client.CoreV1().PersistentVolumeClaims(initClaim.Namespace).Create(initClaim)
+	_, err = client.CoreV1().PersistentVolumeClaims(initClaim.Namespace).Create(initClaim)
 	Expect(err).NotTo(HaveOccurred())
 	err = framework.WaitForPersistentVolumeClaimPhase(v1.ClaimBound, client, initClaim.Namespace, initClaim.Name, framework.Poll, framework.ClaimProvisionTimeout)
 	Expect(err).NotTo(HaveOccurred())
 
 	By("[Initialize dataSource]checking the initClaim")
 	// Get new copy of the initClaim
-	initClaim, err = client.CoreV1().PersistentVolumeClaims(initClaim.Namespace).Get(initClaim.Name, metav1.GetOptions{})
+	_, err = client.CoreV1().PersistentVolumeClaims(initClaim.Namespace).Get(initClaim.Name, metav1.GetOptions{})
 	Expect(err).NotTo(HaveOccurred())
 
 	// write namespace to the /mnt/test (= the volume).
