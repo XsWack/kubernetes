@@ -188,6 +188,9 @@ type snapshottableTestInput struct {
 
 func testSnapshot(input *snapshottableTestInput) {
 	It("should create snapshot with defaults", func() {
+		if input.dInfo.Name == "csi-hostpath-v0" {
+			framework.Skipf("Driver %q does not support create snapshot - skipping", input.dInfo.Name)
+		}
 		TestCreateSnapshot(input.testCase, input.cs, input.dc, input.pvc, input.sc, input.vsc)
 	})
 }

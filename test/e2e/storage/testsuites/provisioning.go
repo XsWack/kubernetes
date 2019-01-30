@@ -213,6 +213,9 @@ func testProvisioning(input *provisioningTestInput) {
 		if !input.dInfo.Capabilities[CapDataSource] {
 			framework.Skipf("Driver %q does not support populate data from snapshot - skipping", input.dInfo.Name)
 		}
+		if input.dInfo.Name == "csi-hostpath-v0" {
+			framework.Skipf("Driver %q does not support populate data from snapshot - skipping", input.dInfo.Name)
+		}
 
 		input.testCase.SkipWriteReadCheck = true
 		dataSource, cleanupFunc := prepareDataSourceForProvisioning(input.testCase, input.cs, input.dc, input.pvc, input.sc, input.vsc)
