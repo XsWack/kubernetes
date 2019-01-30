@@ -295,6 +295,15 @@ func TestDynamicProvisioning(t StorageClassTest, client clientset.Interface, cla
 		Expect(err).NotTo(HaveOccurred())
 	}
 
+	framework.Logf("xxxxxxx dataSource %v", claim.Spec.DataSource)
+	if claim.Spec.DataSource != nil {
+		framework.Logf("check datasource %q/%q", claim.Namespace, claim.Name)
+
+		By("checking the created volume whether has the pre-populated data")
+		command := fmt.Sprintf("grep '%s' /mnt/test/initialData", claim.Namespace)
+		runInPodWithVolume(client, claim.Namespace, claim.Name, t.NodeName, command, t.NodeSelector, t.ExpectUnschedulable)
+	}
+
 	if !t.SkipWriteReadCheck {
 		// We start two pods:
 		// - The first writes 'hello word' to the /mnt/test (= the volume).
@@ -314,12 +323,6 @@ func TestDynamicProvisioning(t StorageClassTest, client clientset.Interface, cla
 
 		By("checking the created volume is readable and retains data")
 		runInPodWithVolume(client, claim.Namespace, claim.Name, t.NodeName, "grep 'hello world' /mnt/test/data", t.NodeSelector, t.ExpectUnschedulable)
-	}
-
-	if claim.Spec.DataSource != nil {
-		By("checking the created volume whether has the pre-populated data")
-		command := fmt.Sprintf("grep '%s' /mnt/test/initialData", claim.Namespace)
-		runInPodWithVolume(client, claim.Namespace, claim.Name, t.NodeName, command, t.NodeSelector, t.ExpectUnschedulable)
 	}
 
 	By(fmt.Sprintf("deleting claim %q/%q", claim.Namespace, claim.Name))
