@@ -520,27 +520,27 @@ func prepareDataSourceForProvisioning(
 	}
 
 	By("[Initialize dataSource]creating a initClaim")
-	_, err = client.CoreV1().PersistentVolumeClaims(initClaim.Namespace).Create(initClaim)
+	updatedClaim, err := client.CoreV1().PersistentVolumeClaims(initClaim.Namespace).Create(initClaim)
 	Expect(err).NotTo(HaveOccurred())
-	err = framework.WaitForPersistentVolumeClaimPhase(v1.ClaimBound, client, initClaim.Namespace, initClaim.Name, framework.Poll, framework.ClaimProvisionTimeout)
+	err = framework.WaitForPersistentVolumeClaimPhase(v1.ClaimBound, client, updatedClaim.Namespace, updatedClaim.Name, framework.Poll, framework.ClaimProvisionTimeout)
 	Expect(err).NotTo(HaveOccurred())
 
 	By("[Initialize dataSource]checking the initClaim")
 	// Get new copy of the initClaim
-	_, err = client.CoreV1().PersistentVolumeClaims(initClaim.Namespace).Get(initClaim.Name, metav1.GetOptions{})
+	_, err = client.CoreV1().PersistentVolumeClaims(updatedClaim.Namespace).Get(updatedClaim.Name, metav1.GetOptions{})
 	Expect(err).NotTo(HaveOccurred())
 
 	// write namespace to the /mnt/test (= the volume).
 	By("[Initialize dataSource]write data to volume")
-	command := fmt.Sprintf("echo '%s' > /mnt/test/initialData", initClaim.GetNamespace())
-	runInPodWithVolume(client, initClaim.Namespace, initClaim.Name, t.NodeName, command, t.NodeSelector, t.ExpectUnschedulable)
+	command := fmt.Sprintf("echo '%s' > /mnt/test/initialData", updatedClaim.GetNamespace())
+	runInPodWithVolume(client, updatedClaim.Namespace, updatedClaim.Name, t.NodeName, command, t.NodeSelector, t.ExpectUnschedulable)
 
 	By("[Initialize dataSource]creating a SnapshotClass")
 	snapshotClass, err = dynamicClient.Resource(snapshotClassGVR).Create(snapshotClass, metav1.CreateOptions{})
 
 	By("[Initialize dataSource]creating a snapshot")
-	snapshot := getSnapshot(initClaim.Name, initClaim.Namespace, snapshotClass.GetName())
-	snapshot, err = dynamicClient.Resource(snapshotGVR).Namespace(initClaim.Namespace).Create(snapshot, metav1.CreateOptions{})
+	snapshot := getSnapshot(updatedClaim.Name, updatedClaim.Namespace, snapshotClass.GetName())
+	snapshot, err = dynamicClient.Resource(snapshotGVR).Namespace(updatedClaim.Namespace).Create(snapshot, metav1.CreateOptions{})
 	Expect(err).NotTo(HaveOccurred())
 
 	WaitForSnapshotReady(dynamicClient, snapshot.GetNamespace(), snapshot.GetName(), framework.Poll, framework.SnapshotCreateTimeout)
@@ -559,15 +559,15 @@ func prepareDataSourceForProvisioning(
 
 	cleanupFunc := func() {
 		framework.Logf("deleting snapshot %q/%q", snapshot.GetNamespace(), snapshot.GetName())
-		err = dynamicClient.Resource(snapshotGVR).Namespace(initClaim.Namespace).Delete(snapshot.GetName(), nil)
+		err = dynamicClient.Resource(snapshotGVR).Namespace(updatedClaim.Namespace).Delete(snapshot.GetName(), nil)
 		if err != nil && !apierrs.IsNotFound(err) {
 			framework.Failf("Error deleting snapshot %q. Error: %v", snapshot.GetName(), err)
 		}
 
-		framework.Logf("deleting initClaim %q/%q", initClaim.Namespace, initClaim.Name)
-		err = client.CoreV1().PersistentVolumeClaims(initClaim.Namespace).Delete(initClaim.Name, nil)
+		framework.Logf("deleting initClaim %q/%q", updatedClaim.Namespace, updatedClaim.Name)
+		err = client.CoreV1().PersistentVolumeClaims(updatedClaim.Namespace).Delete(updatedClaim.Name, nil)
 		if err != nil && !apierrs.IsNotFound(err) {
-			framework.Failf("Error deleting initClaim %q. Error: %v", initClaim.Name, err)
+			framework.Failf("Error deleting initClaim %q. Error: %v", updatedClaim.Name, err)
 		}
 
 		framework.Logf("deleting SnapshotClass %s", snapshotClass.GetName())
