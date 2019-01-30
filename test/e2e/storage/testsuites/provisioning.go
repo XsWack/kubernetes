@@ -234,6 +234,8 @@ func TestDynamicProvisioning(t StorageClassTest, client clientset.Interface, cla
 		By("creating a StorageClass " + class.Name)
 		_, err = client.StorageV1().StorageClasses().Create(class)
 		Expect(err == nil || apierrs.IsAlreadyExists(err)).To(Equal(true))
+		class, err = client.StorageV1().StorageClasses().Get(class.Name, metav1.GetOptions{})
+		Expect(err).NotTo(HaveOccurred())
 		defer func() {
 			framework.Logf("deleting storage class %s", class.Name)
 			framework.ExpectNoError(client.StorageV1().StorageClasses().Delete(class.Name, nil))

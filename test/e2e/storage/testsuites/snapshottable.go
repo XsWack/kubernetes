@@ -298,7 +298,6 @@ func WaitForSnapshotReady(c dynamic.Interface, ns string, snapshotName string, P
 	framework.Logf("Waiting up to %v for VolumeSnapshot %s to become ready", timeout, snapshotName)
 	for start := time.Now(); time.Since(start) < timeout; time.Sleep(Poll) {
 		snapshot, err := c.Resource(snapshotGVR).Namespace(ns).Get(snapshotName, metav1.GetOptions{})
-		framework.Logf("get snapshot: %v", snapshot)
 		if err != nil {
 			framework.Logf("Failed to get claim %q, retrying in %v. Error: %v", snapshotName, Poll, err)
 			continue
